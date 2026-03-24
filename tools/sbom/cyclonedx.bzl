@@ -1,4 +1,4 @@
-load("providers.bzl", "SbomInfo")
+load(":providers.bzl", "SbomInfo")
 
 def _cyclonedx_impl(ctx):
     out_path = ctx.attr.out.name if ctx.attr.out != None else "%s.json" % ctx.attr.name

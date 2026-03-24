@@ -83,7 +83,7 @@ func GenerateBOM(config sbom.GenConfig) (*cdx.BOM, error) {
 		component := cdx.Component{
 			BOMRef:     purl.String(),
 			Type:       cdx.ComponentTypeLibrary,
-			Name:       purl.Name,
+			Name:       purl.Namespace + "/" + purl.Name,
 			PackageURL: purl.String(),
 		}
 
