@@ -1,0 +1,34 @@
+module(
+    name = "bar",
+    version = "",  # Automatically updated by release pipeline.
+)
+
+bazel_dep(name = "package_metadata", version = "HEAD")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_license", version = "HEAD")
+bazel_dep(name = "supply-chain-go", version = "HEAD")
+bazel_dep(name = "supply_chain_tools", version = "HEAD")
+
+local_path_override(
+    module_name = "rules_license",
+    path = "../../rules_license",
+)
+
+local_path_override(
+    module_name = "supply-chain-go",
+    path = "../../lib/supplychain-go",
+)
+
+local_path_override(
+    module_name = "supply_chain_tools",
+    path = "../../tools",
+)
+
+local_path_override(
+    module_name = "package_metadata",
+    path = "../../metadata",
+)
+
+register_toolchains(
+    "//toolchains:all",
+)

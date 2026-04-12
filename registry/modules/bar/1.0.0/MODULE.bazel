@@ -1,0 +1,7 @@
+module(
+    name = "bar",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "package_metadata", version = "0.0.7")
+bazel_dep(name = "platforms", version = "1.0.0")

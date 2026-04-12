@@ -5,7 +5,7 @@ to change at any release.
 """
 
 TargetWithMetadataInfo = provider(
-    doc = """A target and the assocated metadata for it.""",
+    doc = """A target and the associated metadata for it.""",
     fields = {
         "target": "Label: A target which will be associated with some metadata.",
         "metadata": "depset(): [list] of my direct collected leaf attribute providers",
@@ -21,4 +21,8 @@ TransitiveMetadataInfo = provider(
     },
 )
 
-null_transitive_metadata_info = TransitiveMetadataInfo()
+null_transitive_metadata_info = TransitiveMetadataInfo(
+    trans = depset(),
+    top_level_target = None,
+    traces = [],
+)

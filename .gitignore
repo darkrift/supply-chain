@@ -17,3 +17,6 @@
 
 # Editor temporaries
 *.swp
+
+.bazelrc.user
+/.idea
