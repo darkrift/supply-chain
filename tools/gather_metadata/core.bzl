@@ -5,8 +5,16 @@ load(":rule_filters.bzl", "rule_to_excluded_attributes")
 load(":trace.bzl", "TraceInfo")
 
 TOOLCHAINS = [
-    "@@bar+//toolchains:toolchain_type",
-    "@@bar+//toolchains:toolchain_variable",
+    str(Label(toolchain))
+    for toolchain in [
+        #"@bar//toolchains:toolchain_type",
+        #"@bar//toolchains:toolchain_variable",
+        "@rules_python//python:toolchain_type",
+        "@bazel_tools//tools/cpp:toolchain_type",
+        "@bazel_tools//tools/sh:toolchain_type",
+        "@rules_shell//shell:toolchain_type",
+        "@rules_go//go:toolchain",
+    ]
 ]
 
 DEBUG_LEVEL = 5

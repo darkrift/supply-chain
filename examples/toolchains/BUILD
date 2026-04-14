@@ -10,3 +10,13 @@ cyclonedx(
     name = "cyclonedx",
     sbom = ":sbom",
 )
+
+sbom(
+    name = "tools_sbom",
+    target = "@supply-chain-go//:supplychain-go",
+)
+
+cyclonedx(
+    name = "tools_cyclonedx",
+    sbom = ":tools_sbom",
+)
