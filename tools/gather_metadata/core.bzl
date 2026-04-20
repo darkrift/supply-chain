@@ -9,11 +9,11 @@ TOOLCHAINS = [
     for toolchain in [
         #"@bar//toolchains:toolchain_type",
         #"@bar//toolchains:toolchain_variable",
-        "@rules_python//python:toolchain_type",
-        "@bazel_tools//tools/cpp:toolchain_type",
-        "@bazel_tools//tools/sh:toolchain_type",
-        "@rules_shell//shell:toolchain_type",
-        "@rules_go//go:toolchain",
+        #"@rules_python//python:toolchain_type",
+        #"@bazel_tools//tools/cpp:toolchain_type",
+        #"@bazel_tools//tools/sh:toolchain_type",
+        #"@rules_shell//shell:toolchain_type",
+        #"@rules_go//go:toolchain",
     ]
 ]
 
