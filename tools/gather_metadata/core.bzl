@@ -17,7 +17,7 @@ TOOLCHAINS = [
     ]
 ]
 
-DEBUG_LEVEL = 5
+DEBUG_LEVEL = 0
 
 def log0(f):
     if DEBUG_LEVEL > 0:
