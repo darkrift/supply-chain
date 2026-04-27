@@ -1,0 +1,64 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -11,6 +11,7 @@
+ bazel_dep(name = "bazel_skylib", version = "1.2.0")
+ bazel_dep(name = "platforms", version = "1.0.0")
+ bazel_dep(name = "rules_proto", version = "7.0.2")
++bazel_dep(name = "package_metadata", version = "0.0.7")
+ bazel_dep(name = "protobuf", version = "29.0", repo_name = "com_google_protobuf")
+ bazel_dep(name = "rules_shell", version = "0.3.0")
+ bazel_dep(name = "rules_cc", version = "0.1.5")
+diff --git a/go/private/go_toolchain.bzl b/go/private/go_toolchain.bzl
+--- a/go/private/go_toolchain.bzl
++++ b/go/private/go_toolchain.bzl
+@@ -16,6 +16,12 @@
+ """
+ 
+ load("@bazel_skylib//lib:selects.bzl", "selects")
++load(
++    "@package_metadata//:defs.bzl",
++    "PackageMetadataInfo",
++    "PackageMetadataToolchainSbomInfo",
++    "PackageMetadataToolchainUsageInfo",
++)
+ load("//go/private:common.bzl", "GO_TOOLCHAIN")
+ load("//go/private:platforms.bzl", "PLATFORMS")
+ load("//go/private:providers.bzl", "GoSDK")
+@@ -24,11 +30,36 @@
+ load("//go/private/actions:link.bzl", "emit_link")
+ load("//go/private/actions:stdlib.bzl", "emit_stdlib")
+ 
++def _stdlib_package_metadata(ctx, sdk):
++    metadata = ctx.actions.declare_file(ctx.label.name + ".stdlib.package-metadata.json")
++    ctx.actions.write(
++        output = metadata,
++        content = json.encode({
++            "attributes": {},
++            "label": str(ctx.label),
++            "purl": "pkg:golang/std@go%s?type=module" % sdk.version,
++        }),
++    )
++    return PackageMetadataInfo(metadata = metadata)
++
+ def _go_toolchain_impl(ctx):
+     sdk = ctx.attr.sdk[GoSDK]
++    stdlib_metadata = _stdlib_package_metadata(ctx, sdk)
+     cross_compile = ctx.attr.goos != sdk.goos or ctx.attr.goarch != sdk.goarch
+     return [
+         ctx.attr.sdk[DefaultInfo],
++        PackageMetadataToolchainSbomInfo(
++            toolchain_type = Label(GO_TOOLCHAIN),
++            toolchain_label = ctx.label,
++            usages = [
++                PackageMetadataToolchainUsageInfo(
++                    metadata = stdlib_metadata,
++                    relationship = "static_link",
++                    applies_to = "output",
++                    notes = "Go standard library embedded by the rules_go toolchain.",
++                ),
++            ],
++        ),
+         platform_common.ToolchainInfo(
+             # Public fields
+             name = ctx.label.name,

@@ -11,6 +11,8 @@ import (
 	"github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom"
 )
 
+const subjectBOMRef = "bazel-subject"
+
 func main() {
 	var outPath, configPath, format string
 	flag.StringVar(&outPath, "out", "", "The path to write the generated CycloneDX SBOM.")
@@ -71,12 +73,22 @@ func main() {
 }
 
 func GenerateBOM(config sbom.GenConfig) (*cdx.BOM, error) {
-	components := make([]cdx.Component, 0, len(config.Deps))
+	components := make([]cdx.Component, 0, len(config.Nodes))
+	dependencyMap := map[string][]string{
+		subjectBOMRef: {},
+	}
+	labelToBOMRef := map[string]string{}
 
-	for _, dep := range config.Deps {
-		pkgMetadata, err := supplychain.ReadPackageMetadataFromFile(dep.Metadata)
+	rootComponent := cdx.Component{
+		BOMRef: subjectBOMRef,
+		Type:   cdx.ComponentTypeApplication,
+		Name:   config.Subject.Label,
+	}
+
+	for _, node := range config.Nodes {
+		pkgMetadata, err := supplychain.ReadPackageMetadataFromFile(node.Metadata)
 		if err != nil {
-			return nil, fmt.Errorf("error reading metadata file %s: %w", dep.Metadata, err)
+			return nil, fmt.Errorf("error reading metadata file %s: %w", node.Metadata, err)
 		}
 
 		purl := pkgMetadata.GetPURL()
@@ -87,29 +99,73 @@ func GenerateBOM(config sbom.GenConfig) (*cdx.BOM, error) {
 		}
 
 		component := cdx.Component{
-			BOMRef:     purl.String(),
+			BOMRef:     node.ID,
 			Type:       cdx.ComponentTypeLibrary,
 			Name:       fullName,
 			PackageURL: purl.String(),
+			Scope:      componentScopeForNode(node.ID, config.Relationships),
+			Properties: &[]cdx.Property{},
 		}
 
-		// Add version if available
 		if purl.Version != "" {
 			component.Version = purl.Version
 		}
 
 		components = append(components, component)
+		dependencyMap[node.ID] = []string{}
+		labelToBOMRef[node.Label] = node.ID
+	}
+
+	for i := range components {
+		component := &components[i]
+		for _, rel := range config.Relationships {
+			if rel.To != component.BOMRef {
+				continue
+			}
+			component.Properties = appendProperty(component.Properties, "bazel:relationship", rel.Relationship)
+			component.Properties = appendProperty(component.Properties, "bazel:origin", rel.Origin)
+			if rel.AppliesTo != "" {
+				component.Properties = appendProperty(component.Properties, "bazel:applies_to", rel.AppliesTo)
+			}
+			if rel.ToolchainType != "" {
+				component.Properties = appendProperty(component.Properties, "bazel:toolchain_type", rel.ToolchainType)
+			}
+			if rel.ToolchainLabel != "" {
+				component.Properties = appendProperty(component.Properties, "bazel:toolchain_label", rel.ToolchainLabel)
+			}
+			if rel.Notes != "" {
+				component.Properties = appendProperty(component.Properties, "bazel:notes", rel.Notes)
+			}
+			fromRef := ""
+			switch rel.From {
+			case config.Subject.Label:
+				fromRef = subjectBOMRef
+			default:
+				fromRef = labelToBOMRef[rel.From]
+			}
+			if fromRef == "" && rel.Origin == "dependency" {
+				fromRef = subjectBOMRef
+			}
+			if fromRef == "" {
+				continue
+			}
+			dependencyMap[fromRef] = appendUnique(dependencyMap[fromRef], rel.To)
+		}
+	}
+
+	dependencies := make([]cdx.Dependency, 0, len(dependencyMap))
+	for ref, deps := range dependencyMap {
+		depCopy := deps
+		dependencies = append(dependencies, cdx.Dependency{
+			Ref:          ref,
+			Dependencies: &depCopy,
+		})
 	}
 
 	bom := cdx.NewBOM()
 	bom.Version = 1
-
-	if len(components) > 0 {
-		bom.Components = &components
-	}
-
-	// Add metadata with tool information
 	bom.Metadata = &cdx.Metadata{
+		Component: &rootComponent,
 		Tools: &cdx.ToolsChoice{
 			Components: &[]cdx.Component{
 				{
@@ -119,6 +175,49 @@ func GenerateBOM(config sbom.GenConfig) (*cdx.BOM, error) {
 			},
 		},
 	}
+	if len(components) > 0 {
+		bom.Components = &components
+	}
+	if len(dependencies) > 0 {
+		bom.Dependencies = &dependencies
+	}
 
 	return bom, nil
+}
+
+func componentScopeForNode(nodeID string, relationships []sbom.RelationshipConfig) cdx.Scope {
+	scope := cdx.ScopeRequired
+	for _, rel := range relationships {
+		if rel.To != nodeID {
+			continue
+		}
+		switch rel.Relationship {
+		case "build_tool", "build_dependency":
+			return cdx.ScopeExcluded
+		}
+		if rel.Relationship == "provided_runtime" {
+			scope = cdx.ScopeRequired
+		}
+	}
+	return scope
+}
+
+func appendProperty(properties *[]cdx.Property, name, value string) *[]cdx.Property {
+	if properties == nil {
+		properties = &[]cdx.Property{}
+	}
+	*properties = append(*properties, cdx.Property{
+		Name:  name,
+		Value: value,
+	})
+	return properties
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }

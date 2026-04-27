@@ -3,6 +3,8 @@
 load("//providers:package_attribute_info.bzl", _PackageAttributeInfo = "PackageAttributeInfo")
 load("//providers:package_metadata_info.bzl", _PackageMetadataInfo = "PackageMetadataInfo")
 load("//providers:package_metadata_override_info.bzl", _PackageMetadataOverrideInfo = "PackageMetadataOverrideInfo")
+load("//providers:package_metadata_sbom_info.bzl", _PackageMetadataToolchainSbomInfo = "PackageMetadataToolchainSbomInfo")
+load("//providers:package_metadata_sbom_info.bzl", _PackageMetadataToolchainUsageInfo = "PackageMetadataToolchainUsageInfo")
 load("//providers:package_metadata_toolchain_info.bzl", _PackageMetadataToolchainInfo = "PackageMetadataToolchainInfo")
 load("//purl:purl.bzl", _purl = "purl")
 load("//rules:package_metadata.bzl", _package_metadata = "package_metadata")
@@ -13,6 +15,8 @@ visibility("public")
 PackageAttributeInfo = _PackageAttributeInfo
 PackageMetadataInfo = _PackageMetadataInfo
 PackageMetadataOverrideInfo = _PackageMetadataOverrideInfo
+PackageMetadataToolchainSbomInfo = _PackageMetadataToolchainSbomInfo
+PackageMetadataToolchainUsageInfo = _PackageMetadataToolchainUsageInfo
 PackageMetadataToolchainInfo = _PackageMetadataToolchainInfo
 
 # Rules

@@ -16,6 +16,7 @@ bzl_library(
     name = "sbom",
     srcs = [
         ":cyclonedx.bzl",
+        ":gather_sbom.bzl",
         ":sbom.bzl",
         ":spdx.bzl",
         "//gather_metadata",

@@ -2,6 +2,11 @@ load("@gazelle//:def.bzl", "gazelle")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+exports_files([
+    "gazelle_rules_go_060.patch",
+    "rules_go_stdlib_sbom.patch",
+])
+
 package_metadata(
     name = "package_metadata",
     purl = "pkg:bazel/{}@{}".format(

@@ -7,6 +7,11 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+exports_files([
+    "gazelle_rules_go_060.patch",
+    "rules_go_stdlib_sbom.patch",
+])
+
 package_metadata(
     name = "package_metadata",
     attributes = [
