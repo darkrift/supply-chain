@@ -29,6 +29,20 @@ def _test_impl(ctx):
     if actual != expected:
         failures.append("expected {}, got {}".format(expected, actual))
 
+    actual = build_metadata_purl(
+        name = "tool",
+        version = "2.1.0",
+        checksum = "abcdef",
+        purl_pattern = "pkg:github/{owner}/{repo}@{version}",
+        substitutions = {
+            "{owner}": "example",
+            "{repo}": "tool",
+        },
+    )
+    expected = "pkg:github/example/tool@2.1.0?checksum=sha256:abcdef"
+    if actual != expected:
+        failures.append("expected {}, got {}".format(expected, actual))
+
     repo_file = repo_file_with_package_metadata()
     expected_repo_file = """repo(default_package_metadata = ["//:package_metadata"])
 """
