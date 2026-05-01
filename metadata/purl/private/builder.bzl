@@ -103,7 +103,7 @@ def build(
         components.append("/")
 
     # Append the percent-encoded name to the PURL.
-    components.append(purl.name)
+    components.append(percent_encode(purl.name))
 
     # If the version is not empty:
     if purl.version:
@@ -121,7 +121,8 @@ def build(
 
         # Build a list from all key/value pair:
         pairs = []
-        for key, v in purl.qualifiers.items():
+        for key in sorted(purl.qualifiers.keys()):
+            v = purl.qualifiers[key]
             # If the key is 'checksum' and this is a list of checksums join this
             # list with a ',' to create this qualifier value.
             if (key == "checksum") and _is_type(v, []):
@@ -133,10 +134,9 @@ def build(
             # and the percent-encoded value to create a qualifier.
             pairs.append("{}={}".format(key, percent_encode(value)))
 
-        # - Sort this list of qualifier strings lexicographically.
         # - Join this list of qualifier strings with a '&' ampersand.
         # - Append this string to the PURL.
-        components.append("&".join(sorted(pairs)))
+        components.append("&".join(pairs))
 
     # If the subpath is not empty and not composed only of empty, '.' and '..' segments:
     if purl.subpath:

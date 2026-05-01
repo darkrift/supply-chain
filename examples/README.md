@@ -15,3 +15,12 @@ Terminology
 ## Overview
 
 TODO
+
+## Python Runtime SBOM
+
+The `//python:hello_python` example is a `py_binary` with internal
+`py_library` dependencies, runtime data, and a PyPI dependency from
+`pip.parse`. The examples module applies `rules_python_runtime_sbom.patch`,
+which instruments generated wheel libraries with package metadata and the
+resolved Python toolchain as a `runtime_dependency` because Python programs
+require the runtime interpreter and its own files to execute.

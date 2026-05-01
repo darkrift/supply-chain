@@ -22,6 +22,52 @@ def validate(
     if not name:
         return "Mandatory property 'name' not set"
 
+    type = type.lower()
+
+    for i, c in enumerate(strings.bytes.from_string(type)):
+        if strings.ascii.is_alphanumeric(c):
+            if i == 0 and not strings.ascii.is_alpha(c):
+                return "PURL type must start with an ASCII letter"
+            continue
+        elif c == 46 or c == 45 or c == 95:  # . - _
+            continue
+
+        return "PURL type {} contains illegal character {}".format(type, c)
+
+    if type == "cpan":
+        if not namespace:
+            return "CPAN PURLs require a namespace"
+        if "::" in name:
+            return "CPAN PURL names must be distribution names, not module names"
+    elif type == "vscode-extension":
+        if not namespace:
+            return "VS Code Extension PURLs require a namespace"
+    elif type == "julia":
+        if not qualifiers or not qualifiers.get("uuid"):
+            return "Julia PURLs require a uuid qualifier"
+    elif type == "chrome-extension":
+        if len(name) != 32:
+            return "Chrome extension IDs must be 32 characters"
+        for c in name.elems():
+            if c < "a" or c > "p":
+                return "Chrome extension IDs may only contain characters a-p"
+        if version:
+            segments = version.split(".")
+            if len(segments) > 4:
+                return "Chrome extension versions may have at most four segments"
+            for segment in segments:
+                if not segment:
+                    return "Chrome extension version segments must not be empty"
+                for c in strings.bytes.from_string(segment):
+                    if not strings.ascii.is_alphanumeric(c) or strings.ascii.is_alpha(c):
+                        return "Chrome extension version segments must be numeric"
+    elif type == "swift":
+        if not namespace or "/" not in namespace:
+            return "Swift PURLs require a repository host and owner namespace"
+    elif type == "otp":
+        if namespace:
+            return "OTP PURLs must not contain a namespace"
+
     if qualifiers:
         for key, value in qualifiers.items():
             # 5.6.6

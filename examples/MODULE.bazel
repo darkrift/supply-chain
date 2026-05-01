@@ -50,6 +50,21 @@ single_version_override(
     patch_strip = 1,
 )
 
+single_version_override(
+    module_name = "rules_python",
+    version = "1.9.0",
+    patches = ["//:rules_python_runtime_sbom.patch"],
+    patch_strip = 1,
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pypi",
+    python_version = "3.11",
+    requirements_lock = "//python:requirements_lock.txt",
+)
+use_repo(pip, "pypi")
+
 go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.download(version = "1.26.2")
 

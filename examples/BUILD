@@ -9,6 +9,7 @@ package(
 
 exports_files([
     "gazelle_rules_go_060.patch",
+    "rules_python_runtime_sbom.patch",
     "rules_go_stdlib_sbom.patch",
 ])
 
