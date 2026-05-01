@@ -27,8 +27,8 @@ golangci_lint_version = "1.55.2"
     enhanced_http_archive(
         name = "golangci_lint_" + plat.replace("-", "_"),
         build_file_content = """exports_files(["golangci-lint"])""",
-        checksum = sha256,
         purl_pattern = "pkg:github/golangci/golangci-lint@{version}",
+        sha256 = sha256,
         strip_prefix = "golangci-lint-{version}-{platform}",
         substitutions = {
             "{platform}": plat,

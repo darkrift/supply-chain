@@ -3,10 +3,126 @@
 load("@package_metadata//purl:purl.bzl", "purl")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "patch")
 
-def _replacement_values(*, name, version, checksum, substitutions = {}):
+_BASE64 = {
+    "A": 0,
+    "B": 1,
+    "C": 2,
+    "D": 3,
+    "E": 4,
+    "F": 5,
+    "G": 6,
+    "H": 7,
+    "I": 8,
+    "J": 9,
+    "K": 10,
+    "L": 11,
+    "M": 12,
+    "N": 13,
+    "O": 14,
+    "P": 15,
+    "Q": 16,
+    "R": 17,
+    "S": 18,
+    "T": 19,
+    "U": 20,
+    "V": 21,
+    "W": 22,
+    "X": 23,
+    "Y": 24,
+    "Z": 25,
+    "a": 26,
+    "b": 27,
+    "c": 28,
+    "d": 29,
+    "e": 30,
+    "f": 31,
+    "g": 32,
+    "h": 33,
+    "i": 34,
+    "j": 35,
+    "k": 36,
+    "l": 37,
+    "m": 38,
+    "n": 39,
+    "o": 40,
+    "p": 41,
+    "q": 42,
+    "r": 43,
+    "s": 44,
+    "t": 45,
+    "u": 46,
+    "v": 47,
+    "w": 48,
+    "x": 49,
+    "y": 50,
+    "z": 51,
+    "0": 52,
+    "1": 53,
+    "2": 54,
+    "3": 55,
+    "4": 56,
+    "5": 57,
+    "6": 58,
+    "7": 59,
+    "8": 60,
+    "9": 61,
+    "+": 62,
+    "/": 63,
+}
+
+_HEX = "0123456789abcdef"
+_POW2 = [1, 2, 4, 8, 16, 32, 64, 128]
+
+def _byte_to_hex(byte):
+    return _HEX[byte // 16] + _HEX[byte % 16]
+
+def _base64_to_hex(value):
+    clean = "".join(value.split(" ")).rstrip("=")
+    output = []
+    buffer = 0
+    bits = 0
+    for c in clean.elems():
+        digit = _BASE64.get(c)
+        if digit == None:
+            fail("Invalid base64 character in integrity digest: {}".format(c))
+        buffer = (buffer * 64) + digit
+        bits += 6
+        if bits >= 8:
+            bits -= 8
+            output.append(_byte_to_hex((buffer // _POW2[bits]) % 256))
+    return "".join(output)
+
+def _integrity_to_checksum_qualifier(integrity):
+    checksums = []
+    for item in integrity.split(" "):
+        if not item:
+            continue
+        parts = item.split("-")
+        if len(parts) != 2:
+            fail("Invalid integrity value '{}': expected '<algorithm>-<base64 digest>'".format(item))
+        checksums.append("{}:{}".format(parts[0], _base64_to_hex(parts[1])))
+    return ",".join(checksums) if checksums else None
+
+def _checksum_qualifier(*, sha256, integrity):
+    if sha256 and integrity:
+        fail("Only one of 'sha256' or 'integrity' may be specified")
+    if sha256:
+        return "sha256:{}".format(sha256)
+    if integrity:
+        return _integrity_to_checksum_qualifier(integrity)
+    return None
+
+def _verify_checksum_attrs(*, sha256, integrity):
+    if not sha256 and not integrity:
+        fail("One of 'sha256' or 'integrity' must be specified")
+    if sha256 and integrity:
+        fail("Only one of 'sha256' or 'integrity' may be specified")
+
+def _replacement_values(*, name, version, sha256, integrity, substitutions = {}):
     values = {
-        "{checksum}": checksum,
+        "{integrity}": integrity,
         "{name}": name,
+        "{sha256}": sha256,
         "{version}": version,
     }
     values.update(substitutions)
@@ -27,22 +143,6 @@ def _basename(path):
     parts = [part for part in normalized.split("/") if part]
     return parts[-1] if parts else None
 
-def _checksum_qualifier(checksum):
-    if not checksum:
-        return None
-    if ":" in checksum:
-        return checksum
-    return "sha256:{}".format(checksum)
-
-def _download_sha256(checksum):
-    if not checksum:
-        return ""
-    if checksum.startswith("sha256:"):
-        return checksum[len("sha256:"):]
-    if ":" in checksum:
-        fail("Only raw SHA-256 or sha256:<hex> checksums are supported for Bazel downloads")
-    return checksum
-
 def _merge_qualifiers(base, added):
     qualifiers = dict(base or {})
     for key, value in added.items():
@@ -52,14 +152,15 @@ def _merge_qualifiers(base, added):
 
 def _common_qualifiers(
         *,
-        checksum,
+        sha256,
+        integrity,
         download_url,
         file_name,
         repository_url,
         vcs_url,
         vers):
     return {
-        "checksum": _checksum_qualifier(checksum),
+        "checksum": _checksum_qualifier(sha256 = sha256, integrity = integrity),
         "download_url": download_url,
         "file_name": file_name,
         "repository_url": repository_url,
@@ -117,8 +218,9 @@ def build_metadata_purl(
         *,
         name,
         version,
-        checksum,
         purl_pattern,
+        sha256 = "",
+        integrity = "",
         substitutions = {},
         download_url = None,
         file_name = None,
@@ -134,7 +236,8 @@ def build_metadata_purl(
     replacements = _replacement_values(
         name = name,
         version = version,
-        checksum = checksum,
+        sha256 = sha256,
+        integrity = integrity,
         substitutions = substitutions,
     )
     rendered_purl = _replace_tokens(purl_pattern, replacements)
@@ -146,7 +249,8 @@ def build_metadata_purl(
         fail("The 'vers' qualifier is mutually exclusive with the PURL version component")
 
     added_qualifiers = _common_qualifiers(
-        checksum = checksum,
+        sha256 = sha256,
+        integrity = integrity,
         download_url = download_url,
         file_name = file_name,
         repository_url = repository_url,
@@ -175,7 +279,8 @@ def _ctx_replacements(ctx):
     return _replacement_values(
         name = ctx.name,
         version = ctx.attr.version,
-        checksum = ctx.attr.checksum,
+        sha256 = ctx.attr.sha256,
+        integrity = ctx.attr.integrity,
         substitutions = ctx.attr.substitutions,
     )
 
@@ -186,8 +291,9 @@ def _metadata_purl(ctx, urls, output_name = None):
     return build_metadata_purl(
         name = ctx.name,
         version = ctx.attr.version,
-        checksum = ctx.attr.checksum,
         purl_pattern = ctx.attr.purl_pattern,
+        sha256 = ctx.attr.sha256,
+        integrity = ctx.attr.integrity,
         substitutions = ctx.attr.substitutions,
         download_url = download_url,
         file_name = file_name,
@@ -242,6 +348,7 @@ def _apply_patches(ctx):
     patch(ctx)
 
 def _http_archive_impl(ctx):
+    _verify_checksum_attrs(sha256 = ctx.attr.sha256, integrity = ctx.attr.integrity)
     urls = _urls(ctx)
     strip_prefix = _replace_tokens(ctx.attr.strip_prefix, _ctx_replacements(ctx))
     if ctx.attr.add_prefix:
@@ -249,7 +356,8 @@ def _http_archive_impl(ctx):
         ctx.download(
             url = urls,
             output = archive,
-            sha256 = _download_sha256(ctx.attr.checksum),
+            sha256 = ctx.attr.sha256,
+            integrity = ctx.attr.integrity,
         )
         ctx.extract(
             archive = archive,
@@ -260,7 +368,8 @@ def _http_archive_impl(ctx):
     else:
         ctx.download_and_extract(
             url = urls,
-            sha256 = _download_sha256(ctx.attr.checksum),
+            sha256 = ctx.attr.sha256,
+            integrity = ctx.attr.integrity,
             stripPrefix = strip_prefix,
             type = ctx.attr.type,
         )
@@ -270,12 +379,14 @@ def _http_archive_impl(ctx):
     ctx.file("REPO.bazel", repo_file_with_package_metadata())
 
 def _http_file_impl(ctx):
+    _verify_checksum_attrs(sha256 = ctx.attr.sha256, integrity = ctx.attr.integrity)
     urls = _urls(ctx)
     downloaded_file_path = ctx.attr.downloaded_file_path or _basename(_first_url(urls)) or ctx.name
     ctx.download(
         url = urls,
         output = downloaded_file_path,
-        sha256 = _download_sha256(ctx.attr.checksum),
+        sha256 = ctx.attr.sha256,
+        integrity = ctx.attr.integrity,
         executable = ctx.attr.executable,
     )
     _apply_patches(ctx)
@@ -302,21 +413,23 @@ _COMMON_ATTRS = {
         allow_single_file = True,
         doc = "File to use as the generated repository BUILD file. The package_metadata target is appended. Mutually exclusive with build_file_content.",
     ),
-    "checksum": attr.string(
-        mandatory = True,
-        doc = "The artifact SHA-256 checksum as raw hex or sha256:<hex>. It is also added to the PURL as the checksum common qualifier.",
-    ),
     "download_url": attr.string(
         doc = "Optional direct package download URL qualifier. Defaults to the first resolved download URL.",
     ),
     "file_name": attr.string(
         doc = "Optional file_name qualifier. Defaults to the downloaded file name when it can be derived.",
     ),
+    "integrity": attr.string(
+        doc = "Artifact checksum in Subresource Integrity format. Mutually exclusive with sha256. Converted to the PURL checksum qualifier as '<algorithm>:<hex digest>'.",
+    ),
+    "sha256": attr.string(
+        doc = "Artifact SHA-256 checksum as raw hex. Mutually exclusive with integrity. Added to the PURL checksum qualifier as 'sha256:<hex>'.",
+    ),
     "substitutions": attr.string_dict(
-        doc = "Additional literal replacements used by url_pattern, urls, strip_prefix, and purl_pattern. Keys are replaced as-is. Built-ins are {name}, {version}, and {checksum}.",
+        doc = "Additional literal replacements used by url_pattern, urls, strip_prefix, and purl_pattern. Keys are replaced as-is. Built-ins are {name}, {version}, {sha256}, and {integrity}.",
     ),
     "url_pattern": attr.string(
-        doc = "Download URL pattern. Supports {name}, {version}, and {checksum}.",
+        doc = "Download URL pattern. Supports built-in placeholders such as {name}, {version}, {sha256}, and {integrity}.",
     ),
     "patch_args": attr.string_list(
         default = ["-p0"],
@@ -337,7 +450,7 @@ _COMMON_ATTRS = {
     ),
     "purl_pattern": attr.string(
         mandatory = True,
-        doc = "PURL pattern. Supports {name}, {version}, and {checksum}. Common qualifiers are merged after parsing.",
+        doc = "PURL pattern. Supports built-in placeholders such as {name}, {version}, {sha256}, and {integrity}. Common qualifiers are merged after parsing.",
     ),
     "qualifiers": attr.string_dict(
         doc = "Additional PURL qualifiers to merge into the parsed PURL.",

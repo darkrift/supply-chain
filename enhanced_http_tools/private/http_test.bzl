@@ -8,8 +8,8 @@ def _test_impl(ctx):
     actual = build_metadata_purl(
         name = "zlib",
         version = "1.3.1",
-        checksum = "38ef96b8d0a7d57784f7f444b587d7c4f9c931b6d4f3f3d8e8f4b4e4adf3f8b8",
         purl_pattern = "pkg:generic/zlib@{version}?repository_url=https://zlib.net",
+        sha256 = "38ef96b8d0a7d57784f7f444b587d7c4f9c931b6d4f3f3d8e8f4b4e4adf3f8b8",
         download_url = "https://zlib.net/zlib-1.3.1.tar.gz",
         file_name = "zlib-1.3.1.tar.gz",
         vcs_url = "git+https://github.com/madler/zlib.git",
@@ -21,7 +21,7 @@ def _test_impl(ctx):
     actual = build_metadata_purl(
         name = "requests",
         version = "",
-        checksum = "sha256:0123456789abcdef",
+        sha256 = "0123456789abcdef",
         purl_pattern = "pkg:pypi/requests",
         vers = "vers:pypi/>=2.0.0|<3.0.0",
     )
@@ -32,14 +32,24 @@ def _test_impl(ctx):
     actual = build_metadata_purl(
         name = "tool",
         version = "2.1.0",
-        checksum = "abcdef",
         purl_pattern = "pkg:github/{owner}/{repo}@{version}",
+        sha256 = "abcdef",
         substitutions = {
             "{owner}": "example",
             "{repo}": "tool",
         },
     )
     expected = "pkg:github/example/tool@2.1.0?checksum=sha256:abcdef"
+    if actual != expected:
+        failures.append("expected {}, got {}".format(expected, actual))
+
+    actual = build_metadata_purl(
+        name = "empty",
+        version = "0",
+        integrity = "sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+        purl_pattern = "pkg:generic/empty@{version}",
+    )
+    expected = "pkg:generic/empty@0?checksum=sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     if actual != expected:
         failures.append("expected {}, got {}".format(expected, actual))
 
