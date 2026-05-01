@@ -3,6 +3,10 @@
 load("//purl/private:builder.bzl", "build")
 load("//purl/private:parser.bzl", "parse")
 load("//purl/private/tests:spec.bzl", "tests")
+load(
+    "//purl/private/tests:spec.custom.bzl",
+    "custom_tests",
+)
 
 visibility([
     "//purl/private/tests/...",
@@ -105,7 +109,8 @@ def _check_roundtrip_test(test, failures):
 
 def _purl_spec_test_impl(ctx):
     failures = []
-    for test in tests:
+    all_tests = tests + custom_tests
+    for test in all_tests:
         if test["test_group"] not in ["base", "advanced"]:
             fail("Unexpected test group {}".format(test["test_group"]))
         if test["test_type"] == "build":
