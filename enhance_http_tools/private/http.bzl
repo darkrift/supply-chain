@@ -243,13 +243,27 @@ def _apply_patches(ctx):
 
 def _http_archive_impl(ctx):
     urls = _urls(ctx)
-    ctx.download_and_extract(
-        url = urls,
-        sha256 = _download_sha256(ctx.attr.checksum),
-        add_prefix = ctx.attr.add_prefix,
-        stripPrefix = _replace_tokens(ctx.attr.strip_prefix, _ctx_replacements(ctx)),
-        type = ctx.attr.type,
-    )
+    strip_prefix = _replace_tokens(ctx.attr.strip_prefix, _ctx_replacements(ctx))
+    if ctx.attr.add_prefix:
+        archive = "._{}_archive".format(ctx.name)
+        ctx.download(
+            url = urls,
+            output = archive,
+            sha256 = _download_sha256(ctx.attr.checksum),
+        )
+        ctx.extract(
+            archive = archive,
+            output = ctx.attr.add_prefix,
+            stripPrefix = strip_prefix,
+            type = ctx.attr.type,
+        )
+    else:
+        ctx.download_and_extract(
+            url = urls,
+            sha256 = _download_sha256(ctx.attr.checksum),
+            stripPrefix = strip_prefix,
+            type = ctx.attr.type,
+        )
     _apply_patches(ctx)
     metadata_purl = _metadata_purl(ctx, urls)
     ctx.file("BUILD.bazel", build_file_with_package_metadata(metadata_purl, _read_build_file_content(ctx)))

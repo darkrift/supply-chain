@@ -9,3 +9,32 @@ local_path_override(
     module_name = "package_metadata",
     path = "../metadata",
 )
+
+enhanced_http_archive = use_repo_rule("//:defs.bzl", "enhanced_http_archive")
+
+GOLANGCI_LINT = {
+    "1.55.2": {
+        "linux-amd64": "ca21c961a33be3bc15e4292dc40c98c8dcc5463a7b6768a3afc123761630c09c",
+        "linux-arm64": "8eb0cee9b1dbf0eaa49871798c7f8a5b35f2960c52d776a5f31eb7d886b92746",
+        "darwin-amd64": "632e96e6d5294fbbe7b2c410a49c8fa01c60712a0af85a567de85bcc1623ea21",
+        "darwin-arm64": "234463f059249f82045824afdcdd5db5682d0593052f58f6a3039a0a1c3899f6",
+    },
+}
+
+golangci_lint_version = "1.55.2"
+
+[
+    enhanced_http_archive(
+        name = "golangci_lint_" + plat.replace("-", "_"),
+        build_file_content = """exports_files(["golangci-lint"])""",
+        checksum = sha256,
+        purl_pattern = "pkg:github/golangci/golangci-lint@{version}",
+        strip_prefix = "golangci-lint-{version}-{platform}",
+        substitutions = {
+            "{platform}": plat,
+        },
+        url_pattern = "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-{platform}.tar.gz",
+        version = golangci_lint_version,
+    )
+    for plat, sha256 in GOLANGCI_LINT[golangci_lint_version].items()
+]
