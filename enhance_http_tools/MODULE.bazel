@@ -1,0 +1,11 @@
+module(
+    name = "enhance_http_tools",
+    version = "",  # Automatically updated by release pipeline.
+)
+
+bazel_dep(name = "package_metadata", version = "HEAD")
+
+local_path_override(
+    module_name = "package_metadata",
+    path = "../metadata",
+)

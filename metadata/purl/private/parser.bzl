@@ -120,7 +120,6 @@ def parse(value):
         if err:
             return None, err
 
-    remainder = _strip_trailing(remainder, "/")
     namespace, raw_name = _split_once_right(remainder, "/")
     if raw_name == None:
         namespace = None

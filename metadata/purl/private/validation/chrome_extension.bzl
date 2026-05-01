@@ -1,6 +1,8 @@
 """Validation for chrome-extension PURLs.
 """
 
+load("//purl/private/strings:strings.bzl", "strings")
+
 visibility([
     "//purl/private/validation/...",
 ])
