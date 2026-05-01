@@ -1,8 +1,8 @@
-load(":metadata_test.bzl", "golangci_lint_metadata_test")
+load("//:metadata_test.bzl", "metadata_test")
 
 package(default_visibility = ["//visibility:public"])
 
-golangci_lint_metadata_test(
+metadata_test(
     name = "package_metadata_test",
     artifacts = [
         "@golangci_lint_linux_amd64//:golangci-lint",
@@ -16,18 +16,17 @@ golangci_lint_metadata_test(
         "linux-amd64": "ca21c961a33be3bc15e4292dc40c98c8dcc5463a7b6768a3afc123761630c09c",
         "linux-arm64": "8eb0cee9b1dbf0eaa49871798c7f8a5b35f2960c52d776a5f31eb7d886b92746",
     },
+    file_name_pattern = "golangci-lint-1.55.2-{platform}.tar.gz",
     metadata = [
         "@golangci_lint_linux_amd64//:package_metadata",
         "@golangci_lint_linux_arm64//:package_metadata",
         "@golangci_lint_darwin_amd64//:package_metadata",
         "@golangci_lint_darwin_arm64//:package_metadata",
     ],
+    purl_prefix = "pkg:github/golangci/golangci-lint@1.55.2",
 )
 
 filegroup(
     name = "srcs",
-    srcs = [
-        "BUILD",
-        "metadata_test.bzl",
-    ],
+    srcs = ["BUILD"],
 )

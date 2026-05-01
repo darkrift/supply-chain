@@ -1,0 +1,76 @@
+module(
+    name = "enhanced_http_tools_examples",
+    version = "",  # Automatically updated by release pipeline.
+)
+
+bazel_dep(name = "enhanced_http_tools", version = "HEAD")
+bazel_dep(name = "package_metadata", version = "HEAD")
+
+local_path_override(
+    module_name = "enhanced_http_tools",
+    path = "../enhanced_http_tools",
+)
+
+local_path_override(
+    module_name = "package_metadata",
+    path = "../metadata",
+)
+
+enhanced_http_archive = use_repo_rule("@enhanced_http_tools//:defs.bzl", "enhanced_http_archive")
+enhanced_http_file = use_repo_rule("@enhanced_http_tools//:defs.bzl", "enhanced_http_file")
+
+GOLANGCI_LINT = {
+    "1.55.2": {
+        "linux-amd64": "ca21c961a33be3bc15e4292dc40c98c8dcc5463a7b6768a3afc123761630c09c",
+        "linux-arm64": "8eb0cee9b1dbf0eaa49871798c7f8a5b35f2960c52d776a5f31eb7d886b92746",
+        "darwin-amd64": "632e96e6d5294fbbe7b2c410a49c8fa01c60712a0af85a567de85bcc1623ea21",
+        "darwin-arm64": "234463f059249f82045824afdcdd5db5682d0593052f58f6a3039a0a1c3899f6",
+    },
+}
+
+golangci_lint_version = "1.55.2"
+
+[
+    enhanced_http_archive(
+        name = "golangci_lint_" + plat.replace("-", "_"),
+        build_file_content = """exports_files(["golangci-lint"])""",
+        purl_pattern = "pkg:github/golangci/golangci-lint@{version}",
+        sha256 = sha256,
+        strip_prefix = "golangci-lint-{version}-{platform}",
+        substitutions = {
+            "{platform}": plat,
+        },
+        url_pattern = "https://github.com/golangci/golangci-lint/releases/download/v{version}/golangci-lint-{version}-{platform}.tar.gz",
+        version = golangci_lint_version,
+    )
+    for plat, sha256 in GOLANGCI_LINT[golangci_lint_version].items()
+]
+
+GOFUMPT_VERSION = "0.7.0"
+
+GOFUMPT = {
+    "0.7.0": {
+        "linux_amd64": "6ff459c1dcae3b0b00844c1a5a4a5b0f547237d8a4f3624aaea8d424aeef24c6",
+        "linux_arm64": "00c18c88ef50437629626ba20d677f4648684cb280952814cdd887677d42cbd3",
+        "darwin_amd64": "b7d05e092da45c5ec96344ab635b1d6547c3e27c840ba39bc76989934efd7ce3",
+        "darwin_arm64": "08f23114760a090b090706d92b8c52b9875b9eb352d76c77aa354d6aa20b045a",
+    },
+}
+
+[
+    enhanced_http_file(
+        name = "com_github_mvdan_gofumpt_" + plat,
+        downloaded_file_path = "gofumpt",
+        executable = True,
+        purl_pattern = "pkg:github/mvdan/gofumpt@{version}",
+        sha256 = sha256,
+        substitutions = {
+            "{platform}": plat,
+        },
+        urls = [
+            "https://github.com/mvdan/gofumpt/releases/download/v{version}/gofumpt_v{version}_{platform}",
+        ],
+        version = GOFUMPT_VERSION,
+    )
+    for plat, sha256 in GOFUMPT[GOFUMPT_VERSION].items()
+]
