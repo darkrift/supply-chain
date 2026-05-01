@@ -1,5 +1,5 @@
 module(
-    name = "enhance_http_tools",
+    name = "enhanced_http_tools",
     version = "",  # Automatically updated by release pipeline.
 )
 
