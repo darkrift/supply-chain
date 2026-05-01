@@ -5,7 +5,42 @@ load(":providers.bzl", "TargetWithMetadataInfo", "TransitiveMetadataInfo")
 load(":rule_filters.bzl", "rule_to_excluded_attributes")
 load(":trace.bzl", "TraceInfo")
 
+TOOLCHAINS = [
+    str(Label(toolchain))
+    for toolchain in [
+        "@rules_python//python:toolchain_type",
+        "@bazel_tools//tools/cpp:toolchain_type",
+        #"@bazel_tools//tools/sh:toolchain_type",
+        #"@rules_shell//shell:toolchain_type",
+        "@rules_go//go:toolchain",
+    ]
+]
+
 DEBUG_LEVEL = 0
+
+def log0(f):
+    if DEBUG_LEVEL > 0:
+        print(f())
+
+def log1(f):
+    if DEBUG_LEVEL > 1:
+        print(f())
+
+def log2(f):
+    if DEBUG_LEVEL > 2:
+        print(f())
+
+def log3(f):
+    if DEBUG_LEVEL > 3:
+        print(f())
+
+def log4(f):
+    if DEBUG_LEVEL > 4:
+        print(f())
+
+def log5(f):
+    if DEBUG_LEVEL > 5:
+        print(f())
 
 def _is_exec_config(ctx):
     """Determines whether the current configuration is an exec configuration."""
@@ -20,7 +55,7 @@ def _is_exec_config(ctx):
 def should_traverse(ctx, attr, user_filters = None):
     """Checks if the dependent attribute should be traversed.
 
-    Note for the future: We can vastly inmprove the peformance by
+    Note for the future: We can vastly improve the performance by
     moving this to a Bazel 9 style aspect traversal filter.
 
     Args:
@@ -68,18 +103,50 @@ def _get_transitive_metadata(
         provider: the transitive collection provider.
         null_provider_instance: a singleton instance of the empty provider.
         filter_func: filter to determine to skip.
-        traces: debuging traces
+        traces: debugging traces
     """
+
+    log3(lambda: "Exec groups : %s" % repr(ctx.rule.exec_groups))
+    for group, exec_group in dir(ctx.rule.exec_groups):
+        exec_group = getattr(ctx.rule.exec_groups, group)
+        log3(lambda: "Exec group %s : %s" % (group, repr(exec_group)))
+        for toolchain in exec_group.toolchains:
+            log3(lambda: "Toolchain %s in exec group %s : %s" % (toolchain, group, repr(exec_group.toolchains[toolchain])))
+            if provider in toolchain:
+                info = toolchain[provider]
+                if info != null_provider_instance:
+                    trans_tmi.append(info.trans)
+
+    log3(lambda: "toolchains : %s" % repr(ctx.rule.toolchains))
+
+    if ctx.rule.toolchains:
+        for toolchain in TOOLCHAINS:
+            toolchain_label = Label(toolchain)
+            if toolchain_label in ctx.rule.toolchains:
+                dep = ctx.rule.toolchains[toolchain_label]
+                log3(lambda: "Repr for %s %s" % (toolchain_label, repr(ctx.rule.toolchains[toolchain_label])))
+                if provider in dep:
+                    info = dep[provider]
+                    if info != null_provider_instance:
+                        trans_tmi.append(info.trans)
+            elif toolchain in ctx.rule.toolchains:
+                dep = ctx.rule.toolchains[toolchain]
+                log3(lambda: "Repr for %s %s" % (toolchain, repr(ctx.rule.toolchains[toolchain])))
+                if provider in dep:
+                    info = dep[provider]
+                    if info != null_provider_instance:
+                        trans_tmi.append(info.trans)
+
     attrs = [attr for attr in dir(ctx.rule.attr)]
     for name in attrs:
         if filter_func and not filter_func(ctx, name):
-            if DEBUG_LEVEL > 2:
-                print("Trimming attribute %s of %s" % (name, ctx.rule.kind))
+            log2(lambda: "Trimming attribute %s of %s" % (name, ctx.rule.kind))
             continue
-        if DEBUG_LEVEL > 4:
-            print("CHECKING attribute %s of %s" % (name, ctx.rule.kind))
+
+        log4(lambda: "CHECKING attribute %s of %s" % (name, ctx.rule.kind))
 
         attr_value = getattr(ctx.rule.attr, name)
+        log4(lambda: "Attribute %s with value %s" % (name, attr_value))
 
         # Make scalers into a lists for convenience.
         if type(attr_value) != type([]):
@@ -147,8 +214,8 @@ def gather_metadata_info_common(
     # This captures the pairs if
     got_providers = []
     package_info = []
-    if DEBUG_LEVEL > 1:
-        print("==============================================\n %s (%s) \n" % (target.label, ctx.rule.kind))
+    log1(lambda: "==============================================\n %s (%s) \n" % (target.label, ctx.rule.kind))
+
     if hasattr(ctx.rule.attr, "kind") and ctx.rule.attr.kind == "build.bazel.attribute.license":
         # Don't try to gather licenses from the license rule itself. We'll just
         # blunder into the text file of the license and pick up the default
@@ -161,15 +228,14 @@ def gather_metadata_info_common(
             package_metadata = ctx.rule.attr.applicable_licenses
         else:
             package_metadata = []
+
         for metadata_dependency in package_metadata:
-            if DEBUG_LEVEL > 1:
-                print("checking", metadata_dependency.label)
+            log1(lambda: "checking %s" % metadata_dependency.label)
             for wanted_provider in want_providers:
                 if wanted_provider in metadata_dependency:
                     got_providers.append(metadata_dependency[wanted_provider])
 
-    if DEBUG_LEVEL > 0 and got_providers:
-        print("  GOT: ", target.label, got_providers)
+    log0(lambda: "  GOT: %s %s" % (target.label, got_providers))
 
     # Now gather transitive collection of providers from the children this
     # target depends upon.
@@ -212,8 +278,7 @@ def gather_metadata_info_common(
     #    This is common through the whole middle of a build graph.
     # 3. If the above fail, construct a new one.
 
-    if DEBUG_LEVEL > 0:
-        print("%s: got: %d, trans: %d" % (target.label, len(got_providers), len(trans_tmi)))
+    log0(lambda: "%s: got: %d, trans: %d" % (target.label, len(got_providers), len(trans_tmi)))
 
     if not got_providers and not trans_tmi:
         return [null_provider_instance or provider_factory()]
@@ -233,10 +298,12 @@ def gather_metadata_info_common(
         target = target.label,
         metadata = depset(got_providers),
     )
+
     if not trans_tmi:
         return [provider_factory(
             trans = depset(direct = [me]),
         )]
+
     return [provider_factory(
         trans = depset(direct = [me], transitive = trans_tmi),
     )]

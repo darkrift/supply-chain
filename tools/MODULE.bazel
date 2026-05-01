@@ -16,12 +16,6 @@ bazel_dep(name = "rules_python", version = "1.9.0")
 bazel_dep(name = "rules_shell", version = "0.7.1")
 bazel_dep(name = "rules_go", version = "0.60.0")
 
-single_version_override(
-    module_name = "rules_go",
-    patches = ["//:rules_go_stdlib_sbom.patch"],
-    patch_strip = 1,
-)
-
 # For development, we use our sibling projects directly.
 local_path_override(
     module_name = "package_metadata",

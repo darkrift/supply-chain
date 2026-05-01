@@ -8,8 +8,6 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-exports_files(["rules_go_stdlib_sbom.patch"])
-
 package_metadata(
     name = "package_metadata",
     attributes = [
