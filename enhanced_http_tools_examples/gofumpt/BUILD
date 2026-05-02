@@ -6,9 +6,13 @@ metadata_test(
     name = "package_metadata_test",
     artifacts = [
         "@com_github_mvdan_gofumpt_linux_amd64//:gofumpt",
+        "@com_github_mvdan_gofumpt_linux_amd64//file",
         "@com_github_mvdan_gofumpt_linux_arm64//:gofumpt",
+        "@com_github_mvdan_gofumpt_linux_arm64//file",
         "@com_github_mvdan_gofumpt_darwin_amd64//:gofumpt",
+        "@com_github_mvdan_gofumpt_darwin_amd64//file",
         "@com_github_mvdan_gofumpt_darwin_arm64//:gofumpt",
+        "@com_github_mvdan_gofumpt_darwin_arm64//file",
     ],
     expected = {
         "darwin_amd64": "b7d05e092da45c5ec96344ab635b1d6547c3e27c840ba39bc76989934efd7ce3",

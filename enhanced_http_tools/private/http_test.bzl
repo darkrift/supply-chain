@@ -1,6 +1,13 @@
 """Tests for enhanced HTTP helper functions."""
 
-load("//private:http.bzl", "build_file_with_package_metadata", "build_metadata_purl", "repo_file_with_package_metadata")
+load(
+    "//private:http.bzl",
+    "build_file_with_package_metadata",
+    "build_http_file_file_package",
+    "build_http_file_root_package",
+    "build_metadata_purl",
+    "repo_file_with_package_metadata",
+)
 
 def _test_impl(ctx):
     failures = []
@@ -79,6 +86,40 @@ package_metadata(
 """
     if build_file != expected_build_file:
         failures.append("expected BUILD.bazel {}, got {}".format(expected_build_file, build_file))
+
+    file_package = build_http_file_file_package("bin/tool")
+    expected_file_package = """package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "file",
+    srcs = ["bin/tool"],
+)
+"""
+    if file_package != expected_file_package:
+        failures.append("expected file/BUILD {}, got {}".format(expected_file_package, file_package))
+
+    root_package = build_http_file_root_package("pkg:github/example/tool@1.0.0", "tool")
+    expected_root_package = """load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+
+package(default_visibility = ["//visibility:public"])
+
+package_metadata(
+    name = "package_metadata",
+    purl = "pkg:github/example/tool@1.0.0",
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "file",
+    actual = "//file",
+)
+alias(
+    name = "tool",
+    actual = "//file:tool",
+)
+"""
+    if root_package != expected_root_package:
+        failures.append("expected root BUILD.bazel {}, got {}".format(expected_root_package, root_package))
 
     script = ctx.actions.declare_file(ctx.attr.name + ".sh")
     ctx.actions.write(

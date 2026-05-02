@@ -334,6 +334,45 @@ filegroup(
 )
 """
 
+def build_http_file_file_package(downloaded_file_path):
+    return """package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "file",
+    srcs = [{downloaded_file_path}],
+)
+""".format(downloaded_file_path = repr(downloaded_file_path))
+
+def build_http_file_root_package(metadata_purl, downloaded_file_path, build_file_content = None):
+    metadata_load = _metadata_load_fragment()
+    metadata_rule = _metadata_rule_fragment(metadata_purl)
+    if build_file_content:
+        return metadata_load + "\n\n" + build_file_content + "\n\n" + metadata_rule
+
+    aliases = [
+        """alias(
+    name = "file",
+    actual = "//file",
+)""",
+    ]
+    if "/" not in downloaded_file_path:
+        aliases.append("""alias(
+    name = {name},
+    actual = "//file:{actual}",
+)""".format(
+            name = repr(downloaded_file_path),
+            actual = downloaded_file_path,
+        ))
+
+    return (
+        metadata_load +
+        "\n\npackage(default_visibility = [\"//visibility:public\"])\n\n" +
+        metadata_rule +
+        "\n" +
+        "\n".join(aliases) +
+        "\n"
+    )
+
 def repo_file_with_package_metadata():
     return _metadata_repo_file_content()
 
@@ -346,6 +385,20 @@ def _read_build_file_content(ctx):
 
 def _apply_patches(ctx):
     patch(ctx)
+
+def _validate_http_file_downloaded_file_path(ctx, downloaded_file_path):
+    repo_root = ctx.path(".")
+    forbidden_files = [
+        repo_root,
+        ctx.path("WORKSPACE"),
+        ctx.path("BUILD"),
+        ctx.path("BUILD.bazel"),
+        ctx.path("file/BUILD"),
+        ctx.path("file/BUILD.bazel"),
+    ]
+    download_path = ctx.path("file/" + downloaded_file_path)
+    if download_path in forbidden_files or not str(download_path).startswith(str(repo_root)):
+        fail("'{}' cannot be used as downloaded_file_path in enhanced_http_file".format(ctx.attr.downloaded_file_path))
 
 def _http_archive_impl(ctx):
     _verify_checksum_attrs(sha256 = ctx.attr.sha256, integrity = ctx.attr.integrity)
@@ -382,9 +435,10 @@ def _http_file_impl(ctx):
     _verify_checksum_attrs(sha256 = ctx.attr.sha256, integrity = ctx.attr.integrity)
     urls = _urls(ctx)
     downloaded_file_path = ctx.attr.downloaded_file_path or _basename(_first_url(urls)) or ctx.name
+    _validate_http_file_downloaded_file_path(ctx, downloaded_file_path)
     ctx.download(
         url = urls,
-        output = downloaded_file_path,
+        output = "file/" + downloaded_file_path,
         sha256 = ctx.attr.sha256,
         integrity = ctx.attr.integrity,
         executable = ctx.attr.executable,
@@ -392,21 +446,10 @@ def _http_file_impl(ctx):
     _apply_patches(ctx)
     metadata_purl = _metadata_purl(ctx, urls, output_name = downloaded_file_path)
     build_file_content = _read_build_file_content(ctx)
-    if not build_file_content:
-        build_file_content = """
-exports_files(
-    [{downloaded_file_path}],
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "file",
-    srcs = [{downloaded_file_path}],
-    visibility = ["//visibility:public"],
-)
-""".format(downloaded_file_path = repr(downloaded_file_path))
-    ctx.file("BUILD.bazel", build_file_with_package_metadata(metadata_purl, build_file_content))
+    ctx.file("BUILD.bazel", build_http_file_root_package(metadata_purl, downloaded_file_path, build_file_content))
+    ctx.file("file/BUILD", build_http_file_file_package(downloaded_file_path))
     ctx.file("REPO.bazel", repo_file_with_package_metadata())
+    ctx.file("WORKSPACE", "workspace(name = \"{}\")".format(ctx.name))
 
 _COMMON_ATTRS = {
     "build_file": attr.label(
