@@ -128,3 +128,23 @@ A builder object with chainable methods:
     Fails if validation errors occur.
 
 
+<a id="purl.parse"></a>
+
+## purl.parse
+
+<pre>
+load("@package_metadata//purl:purl.bzl", "purl")
+
+purl.parse(<a href="#purl.parse-value">value</a>)
+</pre>
+
+Parses a PURL string into normalized components.
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="purl.parse-value"></a>value |  <p align="center"> - </p>   |  none |
+
+
