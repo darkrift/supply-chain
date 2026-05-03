@@ -1,8 +1,78 @@
 """Utils to normalize [purl](https://github.com/package-url/purl-spec)s."""
 
+load("//purl/private/normalization:bitbucket.bzl", "normalize_bitbucket")
+load("//purl/private/normalization:composer.bzl", "normalize_composer")
+load("//purl/private/normalization:github.bzl", "normalize_github")
+load("//purl/private/normalization:huggingface.bzl", "normalize_huggingface")
+load("//purl/private/normalization:mlflow.bzl", "normalize_mlflow")
+load("//purl/private/normalization:pypi.bzl", "normalize_pypi")
+
 visibility([
     "//purl/private",
 ])
+
+_normalizers = {
+    "bitbucket": normalize_bitbucket,
+    "composer": normalize_composer,
+    "github": normalize_github,
+    "huggingface": normalize_huggingface,
+    "mlflow": normalize_mlflow,
+    "pypi": normalize_pypi,
+}
+
+def _split_path(value):
+    return [segment for segment in value.split("/") if segment] if value else None
+
+def _normalize_qualifiers(qualifiers):
+    if not qualifiers:
+        return None
+
+    normalized = {}
+    for key, value in qualifiers.items():
+        if value == None or value == "":
+            continue
+        normalized[key.lower()] = value
+
+    return normalized if normalized else None
+
+def _namespace_to_segments(namespace):
+    if type(namespace) == type([]):
+        return namespace
+    return _split_path(namespace)
+
+def _subpath_to_segments(subpath):
+    if type(subpath) == type([]):
+        return subpath
+    if not subpath:
+        return None
+
+    segments = []
+    for segment in subpath.split("/"):
+        if segment == "" or segment == "." or segment == "..":
+            continue
+        segments.append(segment)
+    return segments if segments else None
+
+def _normalize_type_specific(*, type, namespace, name, version, qualifiers, subpath):
+    normalizer = _normalizers.get(type)
+    if not normalizer:
+        return struct(
+            type = type,
+            namespace = namespace,
+            name = name,
+            version = version,
+            qualifiers = qualifiers,
+            subpath = subpath,
+        )
+
+    return normalizer(
+        type = type,
+        namespace = namespace,
+        name = name,
+        version = version,
+        qualifiers = qualifiers,
+        subpath = subpath,
+    )
 
 def normalize(
         *,
@@ -15,14 +85,12 @@ def normalize(
     if not type:
         return None, "Mandatory property 'type' not set"
 
-    # TODO(yannic): Implement normalization.
-
-    purl = struct(
-        type = type,
-        namespace = [segment for segment in namespace.split("/") if segment] if namespace else None,
+    normalized_type = type.lower()
+    return _normalize_type_specific(
+        type = normalized_type,
+        namespace = _namespace_to_segments(namespace),
         name = name,
         version = version,
-        qualifiers = qualifiers,
-        subpath = [segment for segment in subpath.split("/") if segment] if subpath else None,
-    )
-    return purl, None
+        qualifiers = _normalize_qualifiers(qualifiers),
+        subpath = _subpath_to_segments(subpath),
+    ), None

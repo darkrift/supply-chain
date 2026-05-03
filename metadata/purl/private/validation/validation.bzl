@@ -1,6 +1,7 @@
 """Utils to validate [purl](https://github.com/package-url/purl-spec)s."""
 
 load("//purl/private/strings:strings.bzl", "strings")
+load("//purl/private/validation:chrome_extension.bzl", "validate_chrome_extension")
 load("//purl/private/validation:cpan.bzl", "validate_cpan")
 load("//purl/private/validation:julia.bzl", "validate_julia")
 load("//purl/private/validation:otp.bzl", "validate_otp")
@@ -12,6 +13,7 @@ visibility([
 ])
 
 _validators = {
+    "chrome-extension": validate_chrome_extension,
     "cpan": validate_cpan,
     "julia": validate_julia,
     "otp": validate_otp,
@@ -32,6 +34,18 @@ def validate(
         return "Mandatory property 'type' not set"
     if not name:
         return "Mandatory property 'name' not set"
+
+    type = type.lower()
+
+    for i, c in enumerate(strings.bytes.from_string(type)):
+        if strings.ascii.is_alphanumeric(c):
+            if i == 0 and not strings.ascii.is_alpha(c):
+                return "PURL type must start with an ASCII letter"
+            continue
+        elif c == 46 or c == 45 or c == 95:  # . - _
+            continue
+
+        return "PURL type {} contains illegal character {}".format(type, c)
 
     if qualifiers:
         for key, value in qualifiers.items():

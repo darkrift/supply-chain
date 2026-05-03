@@ -1,5 +1,6 @@
 exports_files(
     [
+        "chrome_extension.bzl",
         "cpan.bzl",
         "julia.bzl",
         "otp.bzl",
@@ -15,6 +16,7 @@ exports_files(
 filegroup(
     name = "srcs",
     srcs = [
+        "chrome_extension.bzl",
         "cpan.bzl",
         "julia.bzl",
         "otp.bzl",

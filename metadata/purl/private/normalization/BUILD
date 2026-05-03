@@ -1,6 +1,12 @@
 exports_files(
     [
+        "bitbucket.bzl",
+        "composer.bzl",
+        "github.bzl",
+        "huggingface.bzl",
+        "mlflow.bzl",
         "normalization.bzl",
+        "pypi.bzl",
     ],
     visibility = [
         "//purl/private:__pkg__",
@@ -10,7 +16,13 @@ exports_files(
 filegroup(
     name = "srcs",
     srcs = [
+        "bitbucket.bzl",
+        "composer.bzl",
+        "github.bzl",
+        "huggingface.bzl",
+        "mlflow.bzl",
         "normalization.bzl",
+        "pypi.bzl",
     ],
     visibility = [
         "//purl/private:__pkg__",
