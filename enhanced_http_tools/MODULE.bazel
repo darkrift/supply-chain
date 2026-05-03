@@ -3,7 +3,7 @@ module(
     version = "",  # Automatically updated by release pipeline.
 )
 
-bazel_dep(name = "package_metadata", version = "HEAD")
+bazel_dep(name = "package_metadata", version = "0.0.10")
 
 local_path_override(
     module_name = "package_metadata",

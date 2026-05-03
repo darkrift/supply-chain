@@ -449,7 +449,6 @@ def _http_file_impl(ctx):
     ctx.file("BUILD.bazel", build_http_file_root_package(metadata_purl, downloaded_file_path, build_file_content))
     ctx.file("file/BUILD", build_http_file_file_package(downloaded_file_path))
     ctx.file("REPO.bazel", repo_file_with_package_metadata())
-    ctx.file("WORKSPACE", "workspace(name = \"{}\")".format(ctx.name))
 
 _COMMON_ATTRS = {
     "build_file": attr.label(
