@@ -8,11 +8,15 @@ load(":trace.bzl", "TraceInfo")
 TOOLCHAINS = [
     str(Label(toolchain))
     for toolchain in [
-        "@rules_python//python:toolchain_type",
-        "@bazel_tools//tools/cpp:toolchain_type",
+        # TODO Python makes it crash for call-control-api
+        #"@rules_python//python:toolchain_type",
+
+        #"@bazel_tools//tools/cpp:toolchain_type",
         #"@bazel_tools//tools/sh:toolchain_type",
         #"@rules_shell//shell:toolchain_type",
-        "@rules_go//go:toolchain",
+
+        # Enabling go toolchain makes bazel crash on some targets.
+        #"@rules_go//go:toolchain",
     ]
 ]
 
