@@ -1,5 +1,6 @@
 """Aspect for collecting SBOM nodes and relationships, including toolchain usage."""
 
+load("@bazel_features//:features.bzl", "bazel_features")
 load(
     "@package_metadata//:defs.bzl",
     "PackageMetadataInfo",
@@ -20,6 +21,15 @@ load(
     "null_toolchain_sbom_info",
     "null_transitive_sbom_info",
 )
+
+def _is_exec_config(ctx):
+    if bazel_features.rules.is_tool_configuration_public and ctx.configuration.is_tool_configuration():
+        return True
+    elif ctx.bin_dir.path.endswith("-exec/bin"):
+        return True
+    elif "-exec-" in ctx.bin_dir.path:
+        return True
+    return False
 
 def _iter_toolchain_dependencies(ctx):
     toolchains = []
@@ -187,7 +197,7 @@ def _collect_from_children(ctx, traces):
     return transitive_nodes, transitive_relationships
 
 def _gather_sbom_info_impl(target, ctx):
-    if "-exec-" in ctx.bin_dir.path:
+    if _is_exec_config(ctx):
         return [null_transitive_sbom_info, null_toolchain_sbom_info]
 
     direct_nodes, direct_relationships = _direct_nodes_and_relationships(target, ctx)
