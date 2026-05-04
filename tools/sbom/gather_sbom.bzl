@@ -70,6 +70,24 @@ def _metadata_infos_for_rule(rule):
             metadata_infos.append(metadata_dependency[PackageMetadataInfo])
     return metadata_infos
 
+def _transitive_dependency_metadata_infos_for_target(target):
+    metadata_infos = []
+    seen = {}
+    if TransitiveSbomInfo not in target:
+        return metadata_infos
+
+    for relationship in target[TransitiveSbomInfo].relationships.to_list():
+        if relationship.origin != "dependency":
+            continue
+
+        metadata = relationship.to_metadata
+        path = metadata.metadata.path
+        if path in seen:
+            continue
+        seen[path] = True
+        metadata_infos.append(metadata)
+    return metadata_infos
+
 def _direct_nodes_and_relationships(target, ctx):
     nodes = []
     relationships = []
@@ -94,7 +112,17 @@ def _direct_nodes_and_relationships(target, ctx):
         for dep in attr_value:
             if type(dep) != "Target":
                 continue
-            for metadata in _metadata_infos_for_target(dep):
+            dep_metadata_infos = _metadata_infos_for_target(dep)
+
+            # Packaging rules often depend on pass-through targets with no
+            # metadata of their own, while the payload metadata is attached
+            # below them. Preserve a direct dependency edge from the package
+            # consumer to those payload components so SBOM emitters can keep
+            # them connected to the requested subject.
+            if not dep_metadata_infos:
+                dep_metadata_infos = _transitive_dependency_metadata_infos_for_target(dep)
+
+            for metadata in dep_metadata_infos:
                 nodes.append(SbomNodeInfo(
                     target = dep.label,
                     metadata = metadata,
@@ -215,5 +243,5 @@ gather_sbom_info = aspect(
         "_trace": attr.label(default = "@supply_chain_tools//gather_metadata:trace_target"),
     },
     provides = [TransitiveSbomInfo, ToolchainSbomInfo],
-    apply_to_generating_rules = False,
+    apply_to_generating_rules = True,
 )
