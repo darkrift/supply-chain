@@ -20,6 +20,7 @@ def _normalize_pypi_name(name):
 
 def normalize_pypi(*, type, namespace, name, version, qualifiers, subpath):
     return struct(
+        type = type,
         namespace = namespace,
         name = _normalize_pypi_name(name),
         version = version,

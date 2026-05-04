@@ -11,6 +11,7 @@ def normalize_mlflow(*, type, namespace, name, version, qualifiers, subpath):
         normalized_name = name.lower()
 
     return struct(
+        type = type,
         namespace = namespace,
         name = normalized_name,
         version = version,

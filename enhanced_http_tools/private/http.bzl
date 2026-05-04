@@ -174,9 +174,6 @@ def _archive_attrs():
         "add_prefix": attr.string(
             doc = "Destination directory relative to the repository directory, matching native http_archive.",
         ),
-        "build_file_content": attr.string(
-            doc = "BUILD file content for the extracted repository. The package_metadata target is appended.",
-        ),
         "strip_prefix": attr.string(
             doc = "Directory prefix to strip after extraction, matching native http_archive.",
         ),
@@ -189,9 +186,6 @@ def _archive_attrs():
 def _file_attrs():
     attrs = dict(_COMMON_ATTRS)
     attrs.update({
-        "build_file_content": attr.string(
-            doc = "BUILD file content for the generated repository. The package_metadata target is appended.",
-        ),
         "downloaded_file_path": attr.string(
             doc = "Output file path inside the generated repository.",
         ),
@@ -455,6 +449,9 @@ _COMMON_ATTRS = {
         allow_single_file = True,
         doc = "File to use as the generated repository BUILD file. The package_metadata target is appended. Mutually exclusive with build_file_content.",
     ),
+    "build_file_content": attr.string(
+        doc = "BUILD file content for the extracted repository. The package_metadata target is appended.",
+    ),
     "download_url": attr.string(
         doc = "Optional direct package download URL qualifier. Defaults to the first resolved download URL.",
     ),
@@ -472,19 +469,6 @@ _COMMON_ATTRS = {
     ),
     "url_pattern": attr.string(
         doc = "Download URL pattern. Supports built-in placeholders such as {name}, {version}, {sha256}, and {integrity}.",
-    ),
-    "patch_args": attr.string_list(
-        default = ["-p0"],
-        doc = "Arguments passed to the patch tool, matching native http_archive.",
-    ),
-    "patch_cmds": attr.string_list(
-        doc = "Bash commands to run after patches are applied, matching native http_archive.",
-    ),
-    "patch_cmds_win": attr.string_list(
-        doc = "Powershell commands to run on Windows after patches are applied, matching native http_archive.",
-    ),
-    "patch_tool": attr.string(
-        doc = "Patch tool to use instead of Bazel's native patch implementation, matching native http_archive.",
     ),
     "patches": attr.label_list(
         allow_files = True,

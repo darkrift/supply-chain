@@ -57,6 +57,7 @@ def _normalize_type_specific(*, type, namespace, name, version, qualifiers, subp
     normalizer = _normalizers.get(type)
     if not normalizer:
         return struct(
+            type = type,
             namespace = namespace,
             name = name,
             version = version,
