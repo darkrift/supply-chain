@@ -445,6 +445,9 @@ def _http_file_impl(ctx):
     ctx.file("REPO.bazel", repo_file_with_package_metadata())
 
 _COMMON_ATTRS = {
+    "auth_patterns": attr.string_dict(
+
+    ),
     "build_file": attr.label(
         allow_single_file = True,
         doc = "File to use as the generated repository BUILD file. The package_metadata target is appended. Mutually exclusive with build_file_content.",
