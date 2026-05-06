@@ -196,9 +196,26 @@ def _collect_from_children(ctx, traces):
 
     return transitive_nodes, transitive_relationships
 
+def _gather_toolchain_sbom_info_impl(target, ctx):
+    if PackageMetadataToolchainSbomInfo in target:
+        raw_toolchain_sbom = target[PackageMetadataToolchainSbomInfo]
+        return [ToolchainSbomInfo(
+            toolchain_type = raw_toolchain_sbom.toolchain_type,
+            toolchain_label = raw_toolchain_sbom.toolchain_label,
+            usages = raw_toolchain_sbom.usages,
+        )]
+    return [null_toolchain_sbom_info]
+
+gather_toolchain_sbom_info = aspect(
+    doc = "Collects SBOM metadata from resolved toolchains.",
+    implementation = _gather_toolchain_sbom_info_impl,
+    toolchains_aspects = TOOLCHAINS,
+    provides = [ToolchainSbomInfo],
+)
+
 def _gather_sbom_info_impl(target, ctx):
     if _is_exec_config(ctx):
-        return [null_transitive_sbom_info, null_toolchain_sbom_info]
+        return [null_transitive_sbom_info]
 
     direct_nodes, direct_relationships = _direct_nodes_and_relationships(target, ctx)
 
@@ -213,45 +230,23 @@ def _gather_sbom_info_impl(target, ctx):
         traces = traces[0:10]
 
     if not direct_nodes and not direct_relationships and not transitive_nodes and not transitive_relationships:
-        if PackageMetadataToolchainSbomInfo in target:
-            raw_toolchain_sbom = target[PackageMetadataToolchainSbomInfo]
-            return [
-                null_transitive_sbom_info,
-                ToolchainSbomInfo(
-                    toolchain_type = raw_toolchain_sbom.toolchain_type,
-                    toolchain_label = raw_toolchain_sbom.toolchain_label,
-                    usages = raw_toolchain_sbom.usages,
-                ),
-            ]
-        return [null_transitive_sbom_info, null_toolchain_sbom_info]
+        return [null_transitive_sbom_info]
 
-    providers = [TransitiveSbomInfo(
+    return [TransitiveSbomInfo(
         nodes = depset(direct = direct_nodes, transitive = transitive_nodes),
         relationships = depset(direct = direct_relationships, transitive = transitive_relationships),
         top_level_target = target.label,
         traces = traces,
     )]
 
-    if PackageMetadataToolchainSbomInfo in target:
-        raw_toolchain_sbom = target[PackageMetadataToolchainSbomInfo]
-        providers.append(ToolchainSbomInfo(
-            toolchain_type = raw_toolchain_sbom.toolchain_type,
-            toolchain_label = raw_toolchain_sbom.toolchain_label,
-            usages = raw_toolchain_sbom.usages,
-        ))
-    else:
-        providers.append(null_toolchain_sbom_info)
-
-    return providers
-
 gather_sbom_info = aspect(
     doc = "Collects SBOM graph nodes and relationships, including toolchain usages.",
     implementation = _gather_sbom_info_impl,
     attr_aspects = ["*"],
-    toolchains_aspects = TOOLCHAINS,
     attrs = {
         "_trace": attr.label(default = "@supply_chain_tools//gather_metadata:trace_target"),
     },
-    provides = [TransitiveSbomInfo, ToolchainSbomInfo],
+    provides = [TransitiveSbomInfo],
+    requires = [gather_toolchain_sbom_info],
     apply_to_generating_rules = True,
 )

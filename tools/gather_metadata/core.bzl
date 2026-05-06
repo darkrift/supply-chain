@@ -9,7 +9,7 @@ TOOLCHAINS = [
     str(Label(toolchain))
     for toolchain in [
         # TODO Python makes it crash for call-control-api
-        #"@rules_python//python:toolchain_type",
+        "@rules_python//python:toolchain_type",
 
         #"@bazel_tools//tools/cpp:toolchain_type",
         #"@bazel_tools//tools/sh:toolchain_type",
