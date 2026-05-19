@@ -1,33 +1,11 @@
 """Utils to validate [purl](https://github.com/package-url/purl-spec)s."""
 
+load("@purl_type_validation//:validation.bzl", "validate_type")
 load("//purl/private/strings:strings.bzl", "strings")
-load("//purl/private/validation:alpm.bzl", "validate_alpm")
-load("//purl/private/validation:chrome_extension.bzl", "validate_chrome_extension")
-load("//purl/private/validation:cpan.bzl", "validate_cpan")
-load("//purl/private/validation:hackage.bzl", "validate_hackage")
-load("//purl/private/validation:julia.bzl", "validate_julia")
-load("//purl/private/validation:otp.bzl", "validate_otp")
-load("//purl/private/validation:pub.bzl", "validate_pub")
-load("//purl/private/validation:pypi.bzl", "validate_pypi")
-load("//purl/private/validation:swift.bzl", "validate_swift")
-load("//purl/private/validation:vscode_extension.bzl", "validate_vscode_extension")
 
 visibility([
     "//purl/private",
 ])
-
-_validators = {
-    "alpm": validate_alpm,
-    "chrome-extension": validate_chrome_extension,
-    "cpan": validate_cpan,
-    "hackage": validate_hackage,
-    "julia": validate_julia,
-    "otp": validate_otp,
-    "pub": validate_pub,
-    "pypi": validate_pypi,
-    "swift": validate_swift,
-    "vscode-extension": validate_vscode_extension,
-}
 
 def validate(
         *,
@@ -71,11 +49,7 @@ def validate(
 
                 return "Qualifier key {} does not start with ASCII letter, got {}".format(key, c)
 
-    validator = _validators.get(type.lower())
-    if not validator:
-        return None
-
-    return validator(
+    return validate_type(
         type = type,
         namespace = namespace,
         name = name,

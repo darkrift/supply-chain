@@ -31,6 +31,15 @@ local_path_override(
     path = "../rules_license",
 )
 
+purl_types = use_extension("@package_metadata//purl:extensions.bzl", "purl_types")
+purl_types.type(
+    name = "apk",
+    spec = "//pr818:apk-definition.json",
+    test = "//pr818:apk-test.json",
+    override = True,
+)
+use_repo(purl_types, "purl_type_validation")
+
 bazel_dep(name = "rules_python", version = "1.6.3", dev_dependency = True)
 bazel_dep(name = "platforms", version = "1.0.0", dev_dependency = True)
 bazel_dep(name = "rules_cc", version = "0.2.13", dev_dependency = True)

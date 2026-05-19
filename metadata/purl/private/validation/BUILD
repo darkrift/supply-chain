@@ -1,16 +1,6 @@
 exports_files(
     [
-        "alpm.bzl",
-        "chrome_extension.bzl",
-        "cpan.bzl",
-        "hackage.bzl",
-        "julia.bzl",
-        "otp.bzl",
-        "pub.bzl",
-        "pypi.bzl",
-        "swift.bzl",
         "validation.bzl",
-        "vscode_extension.bzl",
     ],
     visibility = [
         "//purl/private:__pkg__",
@@ -20,17 +10,7 @@ exports_files(
 filegroup(
     name = "srcs",
     srcs = [
-        "alpm.bzl",
-        "chrome_extension.bzl",
-        "cpan.bzl",
-        "hackage.bzl",
-        "julia.bzl",
-        "otp.bzl",
-        "pub.bzl",
-        "pypi.bzl",
-        "swift.bzl",
         "validation.bzl",
-        "vscode_extension.bzl",
     ],
     visibility = [
         "//purl/private:__pkg__",
