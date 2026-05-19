@@ -18,6 +18,8 @@ purl_types.overlay(
 purl_types.overlay(
     type = "cpan",
     component = "name_definition",
+    # TODO this is not quite true, the spec says "::" but re.bzl is not a full ECMA-262 compliant regex engine and
+    # doesn't support negative lookahead to use something like "^(?:(?!::).)+$"
     permitted_characters = "^[^:]+$",
 )
 purl_types.overlay(
