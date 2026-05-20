@@ -10,26 +10,26 @@ bazel_dep(
 
 purl_types = use_extension("//purl:extensions.bzl", "purl_types")
 purl_types.standard_types()
-purl_types.overlay(
-    type = "cpan",
-    component = "namespace_definition",
-    permitted_characters = "^[A-Z0-9_-]+$",
-)
-purl_types.overlay(
-    type = "cpan",
-    component = "name_definition",
+#purl_types.overlay(
+#    type = "cpan",
+#    component = "namespace_definition",
+#    permitted_characters = "^[A-Z0-9_-]+$",
+#)
+#purl_types.overlay(
+#    type = "cpan",
+#    component = "name_definition",
     # TODO this is not quite true, the spec says "::" but re.bzl is not a full ECMA-262 compliant regex engine and
     # doesn't support negative lookahead to use something like "^(?:(?!::).)+$"
-    permitted_characters = "^[^:]+$",
-)
-purl_types.overlay(
-    type = "swift",
-    component = "namespace_definition",
-    permitted_characters = "^.+/.+$",
-)
-purl_types.qualifier_overlay(
-    type = "maven",
-    key = "classifier",
-    requirement = "optional",
-)
+#    permitted_characters = "^[^:]+$",
+#)
+#purl_types.overlay(
+#    type = "swift",
+#    component = "namespace_definition",
+#    permitted_characters = "^.+/.+$",
+#)
+#purl_types.qualifier_overlay(
+#    type = "maven",
+#    key = "classifier",
+#    requirement = "optional",
+#)
 use_repo(purl_types, "purl_type_validation")
