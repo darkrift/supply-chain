@@ -1,6 +1,5 @@
 """Parser for [purl](https://github.com/package-url/purl-spec)s."""
 
-load("//purl/private/normalization:normalization.bzl", "normalize")
 load("//purl/private/percent_encoding:percent_encoding.bzl", "percent_decode")
 load("//purl/private/strings:strings.bzl", "strings")
 load("//purl/private/validation:validation.bzl", "is_valid_type", "validate")
@@ -223,7 +222,7 @@ def parse(value):
     if err:
         return None, err
 
-    purl, err = normalize(
+    purl = struct(
         type = type,
         namespace = namespace,
         name = name,
@@ -231,7 +230,5 @@ def parse(value):
         qualifiers = qualifiers,
         subpath = subpath,
     )
-    if err:
-        return None, err
 
     return _to_dict(purl), None

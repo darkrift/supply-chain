@@ -1,6 +1,5 @@
 """Module defining a builder for [purl](https://github.com/package-url/purl-spec)s."""
 
-load("//purl/private/normalization:normalization.bzl", "normalize")
 load("//purl/private/percent_encoding:percent_encoding.bzl", "percent_encode")
 load("//purl/private/strings:strings.bzl", "strings")
 load("//purl/private/validation:validation.bzl", "is_valid_type", "validate")
@@ -184,7 +183,7 @@ def build(
     if err:
         return None, err
 
-    purl, err = normalize(
+    purl = struct(
         type = type,
         namespace = namespace,
         name = name,
@@ -192,8 +191,6 @@ def build(
         qualifiers = qualifiers,
         subpath = subpath,
     )
-    if err:
-        return None, err
 
     # Serialization accoring to https://github.com/package-url/purl-spec/blob/aaede64286deb66c19a80974397d2d903c393d64/docs/how-to-build.md and Section 5.6 of https://ecma-international.org/wp-content/uploads/ECMA-427_1st_edition_december_2025.pdf.
     components = []

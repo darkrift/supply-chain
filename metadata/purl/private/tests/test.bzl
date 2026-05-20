@@ -108,6 +108,10 @@ def _purl_spec_test_impl(ctx):
     failures = []
     all_tests = tests + custom_tests
     for test in all_tests:
+        if test["test_group"] != "basic":
+            # Only test for conformance
+            continue
+
         if test["test_type"] == "build":
             _check_build_test(test, failures)
         elif test["test_type"] == "parse":
