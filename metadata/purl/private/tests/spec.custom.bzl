@@ -115,4 +115,31 @@ custom_tests = [
         "test_group": "base",
         "test_type": "roundtrip",
     },
+    {
+        "description": "Conan purl with unspecified qualifiers should not fail",
+        "expected_failure": False,
+        "expected_failure_reason": None,
+        "expected_output": {
+            "name": "openssl",
+            "namespace": "openssl.org",
+            "qualifiers": {
+                "arch": "x86_64",
+                "build_type": "Debug",
+                "compiler": "Visual Studio",
+                "compiler.runtime": "MDd",
+                "compiler.version": "16",
+                "os": "Windows",
+                "shared": "True",
+                "rrev": "93a82349c31917d2d674d22065c7a9ef9f380c8e",
+                "prev": "b429db8a0e324114c25ec387bfd8281f330d7c5c"
+            },
+            "subpath": None,
+            "type": "conan",
+            "version": "3.0.3",
+        },
+        "input": "pkg:conan/openssl.org/openssl@3.0.3?arch=x86_64&build_type=Debug&compiler=Visual%20Studio&compiler.runtime=MDd&compiler.version=16&os=Windows&shared=True&rrev=93a82349c31917d2d674d22065c7a9ef9f380c8e&prev=b429db8a0e324114c25ec387bfd8281f330d7c5c",
+        "test_group": "base",
+        "test_type": "parse",
+
+    }
 ]
