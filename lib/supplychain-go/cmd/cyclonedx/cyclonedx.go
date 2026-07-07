@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	supplychain "github.com/bazel-contrib/supply-chain/lib/supplychain-go"
@@ -85,6 +88,7 @@ func main() {
 
 func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (*cdx.BOM, error) {
 	components := make([]cdx.Component, 0)
+	componentRefs := make(map[string]bool)
 	labelToBOMRef := make(map[string]string)
 	var rootComponent *cdx.Component
 
@@ -106,12 +110,11 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 			fullName = purl.Namespace + "/" + fullName
 		}
 
-		bomRef := purl.String()
+		packageURL := purl.String()
 		component := cdx.Component{
-			BOMRef:     bomRef,
 			Type:       cdx.ComponentTypeLibrary,
 			Name:       fullName,
-			PackageURL: bomRef,
+			PackageURL: packageURL,
 		}
 
 		// Add version if available
@@ -123,6 +126,12 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 		if scope != "" {
 			component.Scope = cdx.Scope(scope)
 		}
+
+		bomRef, err := componentBOMRef(packageURL, component)
+		if err != nil {
+			return cdx.Component{}, err
+		}
+		component.BOMRef = bomRef
 
 		labelToBOMRef[node.Label] = bomRef
 		return component, nil
@@ -143,7 +152,10 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 		if err != nil {
 			return nil, err
 		}
-		components = append(components, comp)
+		if !componentRefs[comp.BOMRef] {
+			components = append(components, comp)
+			componentRefs[comp.BOMRef] = true
+		}
 	}
 
 	// Add transitive dependencies with scope="transitive"
@@ -152,17 +164,23 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 		if err != nil {
 			return nil, err
 		}
-		components = append(components, comp)
+		if !componentRefs[comp.BOMRef] {
+			components = append(components, comp)
+			componentRefs[comp.BOMRef] = true
+		}
 	}
 
 	// Build Dependencies from graph edges
-	depMap := make(map[string][]string) // parent BOMRef -> []child BOMRefs
+	depMap := make(map[string]map[string]bool) // parent BOMRef -> child BOMRefs
 	for _, edge := range graph.Edges {
 		fromRef, fromOk := labelToBOMRef[edge.From]
 		toRef, toOk := labelToBOMRef[edge.To]
 
 		if fromOk && toOk {
-			depMap[fromRef] = append(depMap[fromRef], toRef)
+			if depMap[fromRef] == nil {
+				depMap[fromRef] = make(map[string]bool)
+			}
+			depMap[fromRef][toRef] = true
 		}
 	}
 
@@ -170,7 +188,19 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 	var dependencies *[]cdx.Dependency
 	if len(depMap) > 0 {
 		deps := make([]cdx.Dependency, 0, len(depMap))
-		for parentRef, childRefs := range depMap {
+		parentRefs := make([]string, 0, len(depMap))
+		for parentRef := range depMap {
+			parentRefs = append(parentRefs, parentRef)
+		}
+		sort.Strings(parentRefs)
+
+		for _, parentRef := range parentRefs {
+			childRefs := make([]string, 0, len(depMap[parentRef]))
+			for childRef := range depMap[parentRef] {
+				childRefs = append(childRefs, childRef)
+			}
+			sort.Strings(childRefs)
+
 			deps = append(deps, cdx.Dependency{
 				Ref:          parentRef,
 				Dependencies: &childRefs,
@@ -208,4 +238,15 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 	bom.Metadata = metadata
 
 	return bom, nil
+}
+
+func componentBOMRef(baseRef string, component cdx.Component) (string, error) {
+	component.BOMRef = ""
+	encoded, err := json.Marshal(component)
+	if err != nil {
+		return "", fmt.Errorf("error hashing CycloneDX component: %w", err)
+	}
+
+	sum := sha256.Sum256(encoded)
+	return fmt.Sprintf("%s#sha256:%s", baseRef, hex.EncodeToString(sum[:])), nil
 }

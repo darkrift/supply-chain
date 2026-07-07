@@ -1,8 +1,16 @@
 """Rules and macros for collecting package_metadata providers."""
 
 load("@bazel_features//:features.bzl", "bazel_features")
+load("@supply_chain_gather_metadata_toolchains//:toolchain_types.bzl", "TOOLCHAIN_TYPES")
 load(":providers.bzl", "TargetWithMetadataInfo", "TransitiveMetadataInfo")
 load(":rule_filters.bzl", "rule_to_excluded_attributes")
+
+def _toolchains_aspects():
+    if bazel_features.rules.supports_toolchains_aspects_star:
+        return ["*"]
+    return TOOLCHAIN_TYPES
+
+TOOLCHAINS_ASPECTS = _toolchains_aspects()
 
 def _is_exec_config(ctx):
     """Determines whether the current configuration is an exec configuration."""
@@ -67,6 +75,26 @@ def _get_transitive_metadata(
         filter_func: filter to determine to skip.
         direct_deps: (output) list of direct dependency labels for edge tracking
     """
+    if ctx.rule.toolchains:
+        if bazel_features.rules.supports_toolchains_aspects_star:
+            toolchain_types = ctx.rule.toolchains.toolchain_types()
+        else:
+            toolchain_types = TOOLCHAIN_TYPES
+
+        for toolchain_type in toolchain_types:
+            if toolchain_type not in ctx.rule.toolchains:
+                continue
+
+            dep = ctx.rule.toolchains[toolchain_type]
+
+            if provider not in dep:
+                continue
+            info = dep[provider]
+            if info != null_provider_instance:
+                transitive_depsets.append(info.transitive)
+                if direct_deps != None:
+                    direct_deps.append(dep.label)
+
     attrs = [attr for attr in dir(ctx.rule.attr)]
     for name in attrs:
         if filter_func and not filter_func(ctx, name):
@@ -92,6 +120,7 @@ def _get_transitive_metadata(
                 info = dep[provider]
                 if info != null_provider_instance:
                     transitive_depsets.append(info.transitive)
+
                     # Track direct dependency for graph edges
                     if direct_deps != None:
                         direct_deps.append(dep.label)

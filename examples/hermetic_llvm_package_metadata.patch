@@ -1,0 +1,148 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+index f0e7c93..a45c455 100644
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -7,6 +7,7 @@ module(
+ bazel_dep(name = "bazel_lib", version = "3.2.2")
+ bazel_dep(name = "bazel_skylib", version = "1.8.2")
+ bazel_dep(name = "bazel_features", version = "1.42.0")
++bazel_dep(name = "package_metadata", version = "0.0.7")
+ bazel_dep(name = "platforms", version = "1.1.0")
+ bazel_dep(name = "rules_cc", version = "0.2.20")
+ bazel_dep(name = "rules_shell", version = "0.6.1")
+diff --git a/runtimes/glibc/BUILD.bazel b/runtimes/glibc/BUILD.bazel
+index 58e7a2c..0417fa5 100644
+--- a/runtimes/glibc/BUILD.bazel
++++ b/runtimes/glibc/BUILD.bazel
+@@ -1,6 +1,8 @@
+ load("@bazel_lib//:bzl_library.bzl", "bzl_library")
+ load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
++load("@package_metadata//:defs.bzl", "package_metadata")
++load("//constraints/libc:libc_versions.bzl", "GLIBC_VERSIONS")
+ load("//toolchain:selects.bzl", "platform_extra_binary")
+ load(":glibc_dynamic_linker.bzl", "glibc_dynamic_linker", "glibc_dynamic_linker_as_needed", "glibc_dynamic_linker_soname_flags")
+ load(":glibc_linker_script.bzl", "make_glibc_linker_script")
+@@ -24,6 +26,15 @@ LIBC_SO_VERSIONS = {
+     "util": "1",
+ }
+ 
++[
++    package_metadata(
++        name = "glibc_{}_package_metadata".format(version.replace(".", "_")),
++        purl = "pkg:generic/glibc@{}".format(version),
++        visibility = ["//visibility:public"],
++    )
++    for version in GLIBC_VERSIONS
++]
++
+ alias(
+     name = "glibc-stubs-generator",
+     actual = platform_extra_binary("bin/glibc-stubs-generator"),
+diff --git a/runtimes/musl/BUILD.bazel b/runtimes/musl/BUILD.bazel
+index b01e531..0dce9fe 100644
+--- a/runtimes/musl/BUILD.bazel
++++ b/runtimes/musl/BUILD.bazel
+@@ -4,6 +4,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+ load("@llvm//toolchain/runtimes:cc_runtime_shared_library.bzl", "cc_runtime_stage0_shared_library")
+ load("@llvm//toolchain/runtimes:cc_runtime_static_library.bzl", "cc_runtime_stage0_static_library")
+ load("@llvm//toolchain/runtimes:cc_stage0_object.bzl", "cc_stage0_object")
++load("@package_metadata//:defs.bzl", "package_metadata")
+ load("@rules_cc//cc:cc_library.bzl", "cc_library")
+ load("//runtimes:defs.bzl", "stub_library")
+ load("//toolchain/args:llvm_target_triple.bzl", "LLVM_TARGET_TRIPLE")
+@@ -61,6 +62,12 @@ CFLAGS_NOSSP = [
+     "-fno-stack-protector",
+ ]
+ 
++package_metadata(
++    name = "musl_package_metadata",
++    purl = "pkg:generic/musl@1.2.6",
++    visibility = ["//visibility:public"],
++)
++
+ cc_library(
+     name = "musl_libc",
+     srcs = [
+diff --git a/toolchain/cc_toolchain.bzl b/toolchain/cc_toolchain.bzl
+index 9dea86b..de6a83a 100644
+--- a/toolchain/cc_toolchain.bzl
++++ b/toolchain/cc_toolchain.bzl
+@@ -1,7 +1,7 @@
+ load("@rules_cc//cc/toolchains:feature_set.bzl", "cc_feature_set")
+ load("@rules_cc//cc/toolchains:toolchain.bzl", _cc_toolchain = "cc_toolchain")
+ 
+-def cc_toolchain(name, tool_map, module_map = None, extra_args = []):
++def cc_toolchain(name, tool_map, module_map = None, extra_args = [], package_metadata = []):
+     cc_feature_set(
+         name = name + "_known_features",
+         all_of = [
+@@ -125,4 +125,5 @@ def cc_toolchain(name, tool_map, module_map = None, extra_args = []):
+             "//conditions:default": "@llvm//runtimes:dynamic_runtime_lib",
+         }),
+         compiler = "clang",
++        applicable_licenses = package_metadata,
+     )
+diff --git a/toolchain/declare_toolchains.bzl b/toolchain/declare_toolchains.bzl
+index 330c9c0..b8a5b41 100644
+--- a/toolchain/declare_toolchains.bzl
++++ b/toolchain/declare_toolchains.bzl
+@@ -1,7 +1,17 @@
++load("//constraints/libc:libc_versions.bzl", "LIBCS")
+ load("//platforms:common.bzl", "SUPPORTED_EXECS", "SUPPORTED_TARGETS")
+ load("//toolchain:selects.bzl", "platform_cc_tool_map", "platform_module_map", "resource_dir_arg")
+ load(":cc_toolchain.bzl", "cc_toolchain")
+ 
++def _libc_package_metadata(libc):
++    if libc == "musl":
++        return ["@llvm//runtimes/musl:musl_package_metadata"]
++
++    if libc.startswith("gnu."):
++        return ["@llvm//runtimes/glibc:glibc_{}_package_metadata".format(libc[len("gnu."):].replace(".", "_"))]
++
++    return []
++
+ def declare_toolchains(*, execs = SUPPORTED_EXECS, targets = SUPPORTED_TARGETS):
+     """Declares the configured LLVM toolchains.
+ 
+@@ -24,7 +34,40 @@ def declare_toolchains(*, execs = SUPPORTED_EXECS, targets = SUPPORTED_TARGETS):
+             ],
+         )
+ 
++        for libc in LIBCS:
++            cc_toolchain(
++                name = "{}_{}_{}_cc_toolchain".format(exec_os, exec_cpu, libc.replace(".", "_")),
++                tool_map = platform_cc_tool_map(exec_os, exec_cpu),
++                module_map = platform_module_map(exec_os, exec_cpu),
++                extra_args = [
++                    resource_dir_arg(exec_os, exec_cpu),
++                ],
++                package_metadata = _libc_package_metadata(libc),
++            )
++
+         for (target_os, target_cpu) in targets:
++            if target_os == "linux":
++                for libc in LIBCS:
++                    native.toolchain(
++                        name = "{}_{}_to_{}_{}_{}".format(exec_os, exec_cpu, target_os, target_cpu, libc.replace(".", "_")),
++                        exec_compatible_with = [
++                            "@platforms//cpu:{}".format(exec_cpu),
++                            "@platforms//os:{}".format(exec_os),
++                        ],
++                        target_compatible_with = [
++                            "@platforms//cpu:{}".format(target_cpu),
++                            "@platforms//os:{}".format(target_os),
++                            "@llvm//constraints/libc:{}".format(libc),
++                        ],
++                        target_settings = [
++                            "@llvm//toolchain:bootstrap_stage0_prebuilt_seed",
++                        ],
++                        toolchain = "{}_{}_{}_cc_toolchain".format(exec_os, exec_cpu, libc.replace(".", "_")),
++                        toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
++                        visibility = ["//visibility:public"],
++                    )
++                continue
++
+             native.toolchain(
+                 name = "{}_{}_to_{}_{}".format(exec_os, exec_cpu, target_os, target_cpu),
+                 exec_compatible_with = [

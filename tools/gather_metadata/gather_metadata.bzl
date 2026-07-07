@@ -11,6 +11,7 @@ load(
 )
 load(
     ":core.bzl",
+    "TOOLCHAINS_ASPECTS",
     "gather_metadata_info_common",
     "should_traverse",
 )
@@ -35,6 +36,7 @@ gather_metadata_info = aspect(
     doc = """Collects metadata providers into a single TransitiveMetadataInfo provider.""",
     implementation = _gather_metadata_info_impl,
     attr_aspects = ["*"],
+    toolchains_aspects = TOOLCHAINS_ASPECTS,
     provides = [TransitiveMetadataInfo],
     apply_to_generating_rules = True,
 )
@@ -96,6 +98,7 @@ gather_metadata_info_and_write = aspect(
     """,
     implementation = _write_metadata_info_impl,
     attr_aspects = ["*"],
+    toolchains_aspects = TOOLCHAINS_ASPECTS,
     provides = [OutputGroupInfo],
     requires = [gather_metadata_info],
     apply_to_generating_rules = True,
