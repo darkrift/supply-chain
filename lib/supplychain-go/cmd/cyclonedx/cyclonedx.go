@@ -6,7 +6,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	supplychain "github.com/bazel-contrib/supply-chain/lib/supplychain-go"
@@ -14,11 +16,14 @@ import (
 )
 
 func main() {
-	var outPath, graphPath, classificationsPath, format, validatorPath string
+	var outPath, graphPath, classificationsPath, format, validatorPath, buildStatusPath, stableStatusPath, serialNumberPath string
 	flag.StringVar(&outPath, "out", "", "The path to write the generated CycloneDX SBOM.")
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the CycloneDX SBOM (json or xml).")
+	flag.StringVar(&buildStatusPath, "created_from_status_file", "", "Path to a Bazel volatile-status.txt file to read BUILD_TIMESTAMP and stable build identity values from.")
+	flag.StringVar(&stableStatusPath, "stable_status_file", "", "Path to a Bazel stable-status.txt file to read stable build identity values from.")
+	flag.StringVar(&serialNumberPath, "serial_number_file", "", "Path to a file containing the CycloneDX BOM serialNumber.")
 	flag.StringVar(&validatorPath, "validator", "", "Optional runfiles path or executable path to the CycloneDX CLI validator.")
 	flag.Parse()
 
@@ -56,7 +61,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	bom, err := GenerateBOM(graph, classifications)
+	buildStatus, err := sbom.ReadBuildStatus(buildStatusPath, stableStatusPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading build status file: %v\n", err)
+		os.Exit(1)
+	}
+
+	serialNumber, err := readSerialNumber(serialNumberPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading serial number file: %v\n", err)
+		os.Exit(1)
+	}
+
+	bom, err := GenerateBOM(graph, classifications, buildStatus, serialNumber)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating BOM: %v\n", err)
 		os.Exit(1)
@@ -92,7 +109,7 @@ func main() {
 	}
 }
 
-func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (*cdx.BOM, error) {
+func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications, buildStatus sbom.BuildStatus, serialNumber string) (*cdx.BOM, error) {
 	components := make([]cdx.Component, 0)
 	labelToBOMRef := make(map[string]string)
 	var rootComponent *cdx.Component
@@ -224,6 +241,12 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 
 	bom := cdx.NewBOM()
 	bom.Version = 1
+	if serialNumber == "" {
+		serialNumber = buildStatus.SerialNumber
+	}
+	if serialNumber != "" {
+		bom.SerialNumber = serialNumber
+	}
 
 	if len(components) > 0 {
 		bom.Components = &components
@@ -233,6 +256,7 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 
 	// Add metadata with tool information and root component
 	metadata := &cdx.Metadata{
+		Timestamp: buildStatus.Created.Format(time.RFC3339),
 		Tools: &cdx.ToolsChoice{
 			Components: &[]cdx.Component{
 				{
@@ -245,10 +269,49 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 
 	// Set the root component in metadata if we have one
 	if rootComponent != nil {
+		if version := buildStatus.Version(); version != "" {
+			rootComponent.Version = version
+		}
+		if revisionURL := buildStatus.RevisionURL(); revisionURL != "" {
+			references := appendExternalReference(rootComponent.ExternalReferences, cdx.ExternalReference{
+				Type: cdx.ERTypeVCS,
+				URL:  revisionURL,
+			})
+			rootComponent.ExternalReferences = &references
+		}
 		metadata.Component = rootComponent
 	}
 
 	bom.Metadata = metadata
 
 	return bom, nil
+}
+
+var cyclonedxSerialNumberPattern = regexp.MustCompile(`^urn:uuid:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+func readSerialNumber(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	serialNumber := strings.TrimSpace(string(data))
+	if serialNumber == "" {
+		return "", fmt.Errorf("%s is empty", path)
+	}
+	if !cyclonedxSerialNumberPattern.MatchString(serialNumber) {
+		return "", fmt.Errorf("%s must contain a CycloneDX serialNumber in urn:uuid form", path)
+	}
+	return serialNumber, nil
+}
+
+func appendExternalReference(existing *[]cdx.ExternalReference, reference cdx.ExternalReference) []cdx.ExternalReference {
+	if existing == nil {
+		return []cdx.ExternalReference{reference}
+	}
+	references := append([]cdx.ExternalReference{}, *existing...)
+	references = append(references, reference)
+	return references
 }

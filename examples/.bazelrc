@@ -1,1 +1,3 @@
 common --@supply_chain_tools//sbom:strict_validations
+common:stamp --stamp
+common:stamp --workspace_status_command='bash workspace_status.sh'

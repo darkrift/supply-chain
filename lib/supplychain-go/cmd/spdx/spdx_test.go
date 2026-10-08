@@ -9,49 +9,6 @@ import (
 	"github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom"
 )
 
-func TestReadBuildTimestamp_NoPath(t *testing.T) {
-	got, err := readBuildTimestamp("")
-	if err != nil {
-		t.Fatalf("readBuildTimestamp(\"\") error = %v", err)
-	}
-	if !got.Equal(time.Unix(0, 0).UTC()) {
-		t.Errorf("readBuildTimestamp(\"\") = %v, want the Unix epoch", got)
-	}
-}
-
-func TestReadBuildTimestamp_FromFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "volatile-status.txt")
-	if err := os.WriteFile(path, []byte("BUILD_SCM_REVISION abc123\nBUILD_TIMESTAMP 1700000000\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := readBuildTimestamp(path)
-	if err != nil {
-		t.Fatalf("readBuildTimestamp() error = %v", err)
-	}
-	want := time.Unix(1700000000, 0).UTC()
-	if !got.Equal(want) {
-		t.Errorf("readBuildTimestamp() = %v, want %v", got, want)
-	}
-}
-
-func TestReadBuildTimestamp_MissingKeyFallsBackToEpoch(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "volatile-status.txt")
-	if err := os.WriteFile(path, []byte("BUILD_SCM_REVISION abc123\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	got, err := readBuildTimestamp(path)
-	if err != nil {
-		t.Fatalf("readBuildTimestamp() error = %v", err)
-	}
-	if !got.Equal(time.Unix(0, 0).UTC()) {
-		t.Errorf("readBuildTimestamp() = %v, want the Unix epoch", got)
-	}
-}
-
 func writePackageMetadata(t *testing.T, dir, name, label, purl string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -85,7 +42,7 @@ func TestGenerateDocument_RequiredFieldsPopulated(t *testing.T) {
 	}
 
 	created := time.Unix(1700000000, 0).UTC()
-	doc, err := GenerateDocument(graph, classifications, created)
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{Created: created}, "")
 	if err != nil {
 		t.Fatalf("GenerateDocument() error = %v", err)
 	}
@@ -122,6 +79,32 @@ func TestGenerateDocument_RequiredFieldsPopulated(t *testing.T) {
 	}
 }
 
+func TestGenerateDocument_UsesBuildStatusVersionForSubjectPackage(t *testing.T) {
+	dir := t.TempDir()
+	rootMeta := writePackageMetadata(t, dir, "root.json", "//app:root", "pkg:bazel/app@1.0.0")
+
+	graph := sbom.GraphConfig{
+		RootTarget: "//app:root",
+		Nodes: []sbom.NodeConfig{
+			{Label: "//app:root", MetadataFile: rootMeta},
+		},
+	}
+	classifications := sbom.Classifications{
+		RootComponent: &sbom.NodeConfig{Label: "//app:root", MetadataFile: rootMeta},
+	}
+
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC(), BuildVersion: "v1.2.3"}, "")
+	if err != nil {
+		t.Fatalf("GenerateDocument() error = %v", err)
+	}
+	if len(doc.Packages) != 1 {
+		t.Fatalf("len(Packages) = %d, want 1", len(doc.Packages))
+	}
+	if doc.Packages[0].PackageVersion != "v1.2.3" {
+		t.Errorf("PackageVersion = %q, want stamped build version", doc.Packages[0].PackageVersion)
+	}
+}
+
 func TestGenerateDocument_NoRootFallsBackToFirstPackage(t *testing.T) {
 	dir := t.TempDir()
 	depMeta := writePackageMetadata(t, dir, "dep.json", "//lib:dep", "pkg:golang/github.com/example/dep@v1.2.3")
@@ -135,7 +118,7 @@ func TestGenerateDocument_NoRootFallsBackToFirstPackage(t *testing.T) {
 		},
 	}
 
-	doc, err := GenerateDocument(graph, classifications, time.Unix(0, 0).UTC())
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, "")
 	if err != nil {
 		t.Fatalf("GenerateDocument() error = %v", err)
 	}
@@ -189,7 +172,7 @@ func TestGenerateDocument_UsesPURLURLDownloadQualifier(t *testing.T) {
 }
 
 func TestGenerateDocument_EmptyGraphUsesFallbackSubject(t *testing.T) {
-	doc, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{}, time.Unix(0, 0).UTC())
+	doc, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{}, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, "")
 	if err != nil {
 		t.Fatalf("GenerateDocument() error = %v", err)
 	}
@@ -198,5 +181,25 @@ func TestGenerateDocument_EmptyGraphUsesFallbackSubject(t *testing.T) {
 	}
 	if doc.DocumentNamespace == "" {
 		t.Error("DocumentNamespace is empty even with no packages at all")
+	}
+}
+
+func TestGenerateDocument_UsesConfiguredDocumentNamespace(t *testing.T) {
+	const namespace = "https://example.com/spdx/0f068793-f9b8-5cdd-9669-3ad9253ad3b7"
+
+	doc, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{}, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, namespace)
+	if err != nil {
+		t.Fatalf("GenerateDocument() error = %v", err)
+	}
+	if doc.DocumentNamespace != namespace {
+		t.Errorf("DocumentNamespace = %q, want %q", doc.DocumentNamespace, namespace)
+	}
+}
+
+func TestGenerateDocument_RejectsInvalidConfiguredDocumentNamespace(t *testing.T) {
+	const namespace = "https://example.com/spdx/name#fragment"
+
+	if _, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{}, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, namespace); err == nil {
+		t.Fatal("GenerateDocument() error = nil, want invalid namespace error")
 	}
 }

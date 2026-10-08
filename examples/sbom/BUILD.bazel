@@ -1,6 +1,8 @@
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@supply_chain_tools//sbom:cyclonedx.bzl", "cyclonedx")
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
+load(":stamped.bzl", "stamped_cyclonedx", "stamped_spdx")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -15,7 +17,37 @@ cyclonedx(
     sbom = ":lib_with_third_party_deps_sbom",
 )
 
+expand_template(
+    name = "lib_with_third_party_deps_spdx_namespace",
+    out = "lib_with_third_party_deps_spdx_namespace.txt",
+    stamp = 1,
+    stamp_substitutions = {
+        "{VERSION}": "{{STABLE_EXAMPLE_VERSION}}",
+    },
+    substitutions = {
+        "{VERSION}": "dev",
+    },
+    template = ["https://example.com/spdx/supply_chain_examples/lib_with_third_party_deps-{VERSION}"],
+)
+
 spdx(
     name = "lib_with_third_party_deps_spdx",
+    document_namespace = ":lib_with_third_party_deps_spdx_namespace",
     sbom = ":lib_with_third_party_deps_sbom",
+)
+
+sbom(
+    name = "acme_sbom",
+    target = "//vendor/acme:acme",
+)
+
+stamped_cyclonedx(
+    name = "acme_stamped_cyclonedx",
+    sbom = ":acme_sbom",
+)
+
+stamped_spdx(
+    name = "acme_stamped_spdx",
+    document_namespace_template = "https://example.com/spdx/supply_chain_examples/acme-{BUILD_VERSION}-{GIT_COMMIT}",
+    sbom = ":acme_sbom",
 )

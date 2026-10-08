@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "spdxnamespace",
+    srcs = ["namespace.go"],
+    importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/spdxnamespace",
+    visibility = ["//:__subpackages__"],
+)
+
+go_test(
+    name = "spdxnamespace_test",
+    srcs = ["namespace_test.go"],
+    embed = [":spdxnamespace"],
+)

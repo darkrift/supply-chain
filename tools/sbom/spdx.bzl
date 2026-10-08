@@ -21,6 +21,12 @@ def _spdx_impl(ctx):
     if ctx.version_file:
         extra_inputs.append(ctx.version_file)
         extra_args.extend(["--created_from_status_file", ctx.version_file.path])
+    if ctx.info_file:
+        extra_inputs.append(ctx.info_file)
+        extra_args.extend(["--stable_status_file", ctx.info_file.path])
+    if ctx.file.document_namespace != None:
+        extra_inputs.append(ctx.file.document_namespace)
+        extra_args.extend(["--document_namespace_file", ctx.file.document_namespace.path])
     if strict:
         spdx_validator = ctx.toolchains["//sbom:spdx_validator_toolchain_type"]
         extra_args.extend(["--validator", spdx_validator.validator.path])
@@ -58,6 +64,10 @@ spdx = rule(
     _spdx_impl,
     attrs = {
         "sbom": attr.label(doc = "The sbom target to generate the SPDX SBOM from."),
+        "document_namespace": attr.label(
+            allow_single_file = True,
+            doc = "Optional file target whose content is used as the SPDX document namespace. If unset, a deterministic namespace is derived from the document subject.",
+        ),
         "format": attr.string(default = "json", values = ["json", "yaml", "tag-value"], doc = "The output format for the SPDX SBOM."),
         "out": attr.output(doc = "The output file for the SPDX SBOM."),
         "_spdx": attr.label(default = "@supply-chain-go//cmd/spdx", doc = "The spdx tool to use.", executable = True, cfg = "exec"),
