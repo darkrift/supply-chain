@@ -1,1 +1,1 @@
-common --@supply_chain_tools//sbom:validate_schemas
+common --@supply_chain_tools//sbom:strict_validations

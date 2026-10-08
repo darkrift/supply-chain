@@ -13,15 +13,15 @@ filegroup(
     srcs = glob(["**"]),
 )
 
-# Disabled by default: schema validation re-parses and re-validates every
-# generated SBOM against the (large) vendored CycloneDX/SPDX JSON Schemas on
-# every build, which has a real cost across a big dependency graph. Opt in
-# per-invocation with:
-#   bazel build //some:target --//sbom:validate_schemas
-# or flip the default for a whole build with --//sbom:validate_schemas=true
+# Disabled by default: strict generator mode re-parses and re-validates every
+# generated JSON SBOM against the (large) vendored CycloneDX/SPDX JSON Schemas
+# before the generator exits, which has a real cost across a big dependency
+# graph. Opt in per-invocation with:
+#   bazel build //some:target --//sbom:strict_validations
+# or flip the default for a whole build with --//sbom:strict_validations=true
 # in a bazelrc config.
 bool_flag(
-    name = "validate_schemas",
+    name = "strict_validations",
     build_setting_default = False,
 )
 

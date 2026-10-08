@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,11 +13,16 @@ import (
 )
 
 func main() {
-	var outPath, graphPath, classificationsPath, format string
+	var outPath, graphPath, classificationsPath, format, schemaPath string
+	var strict bool
+	var auxSchemaPaths stringList
 	flag.StringVar(&outPath, "out", "", "The path to write the generated CycloneDX SBOM.")
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the CycloneDX SBOM (json or xml).")
+	flag.BoolVar(&strict, "strict", false, "Validate the generated JSON SBOM against --schema before exiting.")
+	flag.StringVar(&schemaPath, "schema", "", "The CycloneDX JSON Schema to use with --strict.")
+	flag.Var(&auxSchemaPaths, "aux_schema", "Path to an additional schema referenced by --schema via \"$ref\" (repeatable).")
 	flag.Parse()
 
 	if outPath == "" {
@@ -53,25 +59,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	out, err := os.OpenFile(outPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening output file: %v\n", err)
-		os.Exit(1)
-	}
-	defer out.Close()
-
 	bom, err := GenerateBOM(graph, classifications)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating BOM: %v\n", err)
 		os.Exit(1)
 	}
 
-	encoder := cdx.NewBOMEncoder(out, cdx.BOMFileFormatJSON)
+	var buf bytes.Buffer
+	encoder := cdx.NewBOMEncoder(&buf, cdx.BOMFileFormatJSON)
 	switch format {
 	case "json":
-		encoder = cdx.NewBOMEncoder(out, cdx.BOMFileFormatJSON)
+		encoder = cdx.NewBOMEncoder(&buf, cdx.BOMFileFormatJSON)
 	case "xml":
-		encoder = cdx.NewBOMEncoder(out, cdx.BOMFileFormatXML)
+		encoder = cdx.NewBOMEncoder(&buf, cdx.BOMFileFormatXML)
 	default:
 		fmt.Fprintf(os.Stderr, "Error: '%s' is not a supported format. Use 'json' or 'xml'\n", format)
 		os.Exit(1)
@@ -79,6 +79,26 @@ func main() {
 
 	if err := encoder.Encode(bom); err != nil {
 		fmt.Fprintf(os.Stderr, "Error encoding BOM: %v\n", err)
+		os.Exit(1)
+	}
+
+	if strict {
+		if format != "json" {
+			fmt.Fprintln(os.Stderr, "Error: --strict schema validation is only supported for json output")
+			os.Exit(1)
+		}
+		if schemaPath == "" {
+			fmt.Fprintln(os.Stderr, "Error: --schema is required when --strict is set")
+			os.Exit(1)
+		}
+		if err := sbom.ValidateJSONSchemaBytes(schemaPath, auxSchemaPaths, buf.Bytes()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error validating BOM: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	if err := os.WriteFile(outPath, buf.Bytes(), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -226,4 +246,15 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 	bom.Metadata = metadata
 
 	return bom, nil
+}
+
+type stringList []string
+
+func (s *stringList) String() string {
+	return fmt.Sprint([]string(*s))
+}
+
+func (s *stringList) Set(v string) error {
+	*s = append(*s, v)
+	return nil
 }

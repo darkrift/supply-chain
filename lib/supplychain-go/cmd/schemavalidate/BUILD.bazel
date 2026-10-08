@@ -6,7 +6,7 @@ go_library(
     importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/cmd/schemavalidate",
     visibility = ["//visibility:private"],
     deps = [
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "//internal/sbom",
     ],
 )
 

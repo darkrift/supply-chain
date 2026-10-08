@@ -23,6 +23,14 @@ def _spdx_impl(ctx):
         extra_inputs.append(ctx.version_file)
         extra_args.extend(["--created_from_status_file", ctx.version_file.path])
 
+    if ctx.attr.format == "json" and ctx.attr._strict_validations[BuildSettingInfo].value:
+        extra_inputs.append(ctx.file._spdx_schema)
+        extra_args.extend([
+            "--strict",
+            "--schema",
+            ctx.file._spdx_schema.path,
+        ])
+
     inputs = depset(
         extra_inputs,
         transitive = [
@@ -46,40 +54,8 @@ def _spdx_impl(ctx):
         ] + extra_args,
     )
 
-    # Validate the generated document against the vendored SPDX 2.3 JSON
-    # Schema. Disabled by default (see //sbom:validate_schemas); opt in with
-    # --//sbom:validate_schemas, since re-validating against the full schema
-    # on every build has a real cost. Only "json" has a JSON Schema to
-    # validate against; "yaml" and "tag-value" are not covered. See
-    # https://bazel.build/extending/rules#validation-actions: this output is
-    # never part of DefaultInfo, only of the "_validation" output group, so
-    # it runs (when enabled) without gating anything that depends on this
-    # target.
-    output_groups = {}
-    if ctx.attr.format == "json" and ctx.attr._validate_schemas[BuildSettingInfo].value:
-        validation_out = ctx.actions.declare_file("%s.schema_valid" % ctx.attr.name)
-        ctx.actions.run(
-            outputs = [validation_out],
-            inputs = depset(
-                [out, ctx.file._spdx_schema],
-                transitive = [ctx.attr._schemavalidate[DefaultInfo].data_runfiles.files],
-            ),
-            executable = ctx.attr._schemavalidate[DefaultInfo].files_to_run,
-            arguments = [
-                "--schema",
-                ctx.file._spdx_schema.path,
-                "--instance",
-                out.path,
-                "--output",
-                validation_out.path,
-            ],
-            mnemonic = "SpdxSchemaValidate",
-        )
-        output_groups["_validation"] = depset([validation_out])
-
     return [
         DefaultInfo(files = depset([out])),
-        OutputGroupInfo(**output_groups),
     ]
 
 spdx = rule(
@@ -89,15 +65,14 @@ spdx = rule(
         "format": attr.string(default = "json", values = ["json", "yaml", "tag-value"], doc = "The output format for the SPDX SBOM."),
         "out": attr.output(doc = "The output file for the SPDX SBOM."),
         "_spdx": attr.label(default = "@supply-chain-go//cmd/spdx", doc = "The spdx tool to use.", executable = True, cfg = "exec"),
-        "_schemavalidate": attr.label(default = "@supply-chain-go//cmd/schemavalidate", doc = "The JSON Schema validator to use.", executable = True, cfg = "exec"),
         "_spdx_schema": attr.label(
             default = "//sbom/schemas/spdx:spdx-schema.json",
             allow_single_file = True,
             doc = "The vendored SPDX 2.3 JSON Schema.",
         ),
-        "_validate_schemas": attr.label(
-            default = "//sbom:validate_schemas",
-            doc = "Whether to run the schema-validation action. See //sbom:validate_schemas.",
+        "_strict_validations": attr.label(
+            default = "//sbom:strict_validations",
+            doc = "Whether to pass --strict to the generator for JSON schema validation. See //sbom:strict_validations.",
         ),
     },
 )
