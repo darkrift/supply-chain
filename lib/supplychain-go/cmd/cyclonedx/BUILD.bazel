@@ -2,21 +2,13 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "cyclonedx_lib",
-    srcs = [
-        "cyclonedx.go",
-        "xsd_validate.go",
-    ],
-    cgo = True,
-    clinkopts = [
-        "-lxml2",
-    ],
+    srcs = ["cyclonedx.go"],
     importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/cmd/cyclonedx",
     visibility = ["//visibility:private"],
     deps = [
         "//:supplychain-go",
         "//internal/sbom",
         "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
-        "@com_github_terminalstatic_go_xsd_validate//:go-xsd-validate",
     ],
 )
 

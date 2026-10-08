@@ -1,11 +1,11 @@
 # Vendored SBOM schemas
 
-These files are vendored from upstream so that schema validation of generated
-SBOMs does not require network access at build/test time. JSON Schema files
-still declare their original `$id`; the validator
-(`//lib/supplychain-go/cmd/schemavalidate`) registers every file it's given
-under that `$id`, so cross-file `$ref`s resolve locally rather than hitting
-the network.
+These files are vendored verbatim (byte-for-byte, no modifications) from
+upstream so that schema validation of generated SBOMs does not require
+network access at build/test time. Each file still declares its original
+`$id`; the validator (`//lib/supplychain-go/cmd/schemavalidate`) registers
+every file it's given under that `$id`, so cross-file `$ref`s resolve
+locally rather than hitting the network.
 
 To refresh, re-fetch the same paths at a newer tag and update this file's
 pinned commit/tag.
@@ -13,20 +13,13 @@ pinned commit/tag.
 ## CycloneDX (`cyclonedx/`)
 
 Source: https://github.com/CycloneDX/specification
-Pinned JSON Schema tag: `1.6.1` (commit `8a27bfd1be5be0dcb2c208a34d2f4fa0b6d75bd7`)
-Pinned XSD tag: `1.6`
+Pinned tag: `1.6.1` (commit `8a27bfd1be5be0dcb2c208a34d2f4fa0b6d75bd7`)
 
 - `bom-1.6.schema.json` — `schema/bom-1.6.schema.json`, the root BOM schema.
   Matches the spec version `cyclonedx-go` (our dependency) defaults to for
   `cdx.NewBOM()` (`SpecVersion1_6`).
-- `bom-1.6.xsd` — `schema/bom-1.6.xsd`, the root BOM XML Schema. Matches the
-  same `SpecVersion1_6` CycloneDX XML output. Its `spdx` import
-  `schemaLocation` is rewritten from the upstream HTTP URL to local
-  `spdx.xsd` so validation remains offline and hermetic.
 - `spdx.schema.json` — `schema/spdx.schema.json`, referenced by
   `bom-1.6.schema.json` for the SPDX license ID enum.
-- `spdx.xsd` — `schema/spdx.xsd`, imported by `bom-1.6.xsd` for the SPDX
-  license ID enum.
 - `jsf-0.82.schema.json` — `schema/jsf-0.82.schema.json`, referenced by
   `bom-1.6.schema.json` for the `signature` definition (JSON Signature
   Format).

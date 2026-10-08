@@ -13,10 +13,3 @@ cyclonedx(
     name = "lib_with_third_party_deps_cyclonedx",
     sbom = ":lib_with_third_party_deps_sbom",
 )
-
-cyclonedx(
-    name = "lib_with_third_party_deps_cyclonedx_xml",
-    format = "xml",
-    out = "lib_with_third_party_deps_cyclonedx.xml",
-    sbom = ":lib_with_third_party_deps_sbom",
-)

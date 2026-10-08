@@ -25,7 +25,6 @@ use_repo(
     "com_github_santhosh_tekuri_jsonschema_v5",
     "com_github_spdx_tools_golang",
     "com_github_stretchr_testify",
-    "com_github_terminalstatic_go_xsd_validate",
 )
 
 local_path_override(
