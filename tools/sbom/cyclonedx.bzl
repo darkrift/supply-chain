@@ -7,13 +7,20 @@ def _cyclonedx_impl(ctx):
 
     extra_inputs = []
     extra_args = []
-    if ctx.attr.format == "json" and ctx.attr._strict_validations[BuildSettingInfo].value:
-        extra_inputs = [ctx.file._cdx_schema] + ctx.files._cdx_schema_aux
+    if ctx.attr._strict_validations[BuildSettingInfo].value and ctx.attr.format == "json":
+        extra_inputs = [ctx.file._cdx_json_schema] + ctx.files._cdx_json_schema_aux
         extra_args = [
             "--strict",
             "--schema",
-            ctx.file._cdx_schema.path,
-        ] + [arg for f in ctx.files._cdx_schema_aux for arg in ("--aux_schema", f.path)]
+            ctx.file._cdx_json_schema.path,
+        ] + [arg for f in ctx.files._cdx_json_schema_aux for arg in ("--aux_schema", f.path)]
+    elif ctx.attr._strict_validations[BuildSettingInfo].value and ctx.attr.format == "xml":
+        extra_inputs = [ctx.file._cdx_xml_schema] + ctx.files._cdx_xml_schema_aux
+        extra_args = [
+            "--strict",
+            "--schema",
+            ctx.file._cdx_xml_schema.path,
+        ]
 
     inputs = depset(
         extra_inputs,
@@ -49,18 +56,30 @@ cyclonedx = rule(
         "format": attr.string(default = "json", values = ["json", "xml"], doc = "The output format for the CycloneDX SBOM."),
         "out": attr.output(doc = "The output file for the CycloneDX SBOM."),
         "_cyclonedx": attr.label(default = "@supply-chain-go//cmd/cyclonedx", doc = "The cyclonedx tool to use.", executable = True, cfg = "exec"),
-        "_cdx_schema": attr.label(
+        "_cdx_json_schema": attr.label(
             default = "//sbom/schemas/cyclonedx:bom-1.6.schema.json",
             allow_single_file = True,
             doc = "The vendored root CycloneDX JSON Schema.",
         ),
-        "_cdx_schema_aux": attr.label_list(
+        "_cdx_json_schema_aux": attr.label_list(
             default = [
                 "//sbom/schemas/cyclonedx:spdx.schema.json",
                 "//sbom/schemas/cyclonedx:jsf-0.82.schema.json",
             ],
             allow_files = True,
-            doc = "Vendored schemas referenced by _cdx_schema via \"$ref\".",
+            doc = "Vendored schemas referenced by _cdx_json_schema via \"$ref\".",
+        ),
+        "_cdx_xml_schema": attr.label(
+            default = "//sbom/schemas/cyclonedx:bom-1.6.xsd",
+            allow_single_file = True,
+            doc = "The vendored root CycloneDX XML Schema.",
+        ),
+        "_cdx_xml_schema_aux": attr.label_list(
+            default = [
+                "//sbom/schemas/cyclonedx:spdx.xsd",
+            ],
+            allow_files = True,
+            doc = "Vendored schemas referenced by _cdx_xml_schema via xs:import.",
         ),
         "_strict_validations": attr.label(
             default = "//sbom:strict_validations",

@@ -8,6 +8,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/spdx/tools-golang v0.5.5
 	github.com/stretchr/testify v1.11.1
+	github.com/terminalstatic/go-xsd-validate v0.1.6
 )
 
 require (

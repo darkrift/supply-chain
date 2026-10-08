@@ -20,8 +20,8 @@ func main() {
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the CycloneDX SBOM (json or xml).")
-	flag.BoolVar(&strict, "strict", false, "Validate the generated JSON SBOM against --schema before exiting.")
-	flag.StringVar(&schemaPath, "schema", "", "The CycloneDX JSON Schema to use with --strict.")
+	flag.BoolVar(&strict, "strict", false, "Validate the generated SBOM against --schema before exiting.")
+	flag.StringVar(&schemaPath, "schema", "", "The CycloneDX JSON Schema or XML Schema to use with --strict.")
 	flag.Var(&auxSchemaPaths, "aux_schema", "Path to an additional schema referenced by --schema via \"$ref\" (repeatable).")
 	flag.Parse()
 
@@ -83,15 +83,11 @@ func main() {
 	}
 
 	if strict {
-		if format != "json" {
-			fmt.Fprintln(os.Stderr, "Error: --strict schema validation is only supported for json output")
-			os.Exit(1)
-		}
 		if schemaPath == "" {
 			fmt.Fprintln(os.Stderr, "Error: --schema is required when --strict is set")
 			os.Exit(1)
 		}
-		if err := sbom.ValidateJSONSchemaBytes(schemaPath, auxSchemaPaths, buf.Bytes()); err != nil {
+		if err := validateCycloneDXSchema(format, schemaPath, auxSchemaPaths, buf.Bytes()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error validating BOM: %v\n", err)
 			os.Exit(1)
 		}
@@ -100,6 +96,17 @@ func main() {
 	if err := os.WriteFile(outPath, buf.Bytes(), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func validateCycloneDXSchema(format, schemaPath string, auxSchemaPaths []string, data []byte) error {
+	switch format {
+	case "json":
+		return sbom.ValidateJSONSchemaBytes(schemaPath, auxSchemaPaths, data)
+	case "xml":
+		return validateXMLSchemaBytes(schemaPath, data)
+	default:
+		return fmt.Errorf("--strict schema validation is not supported for %s output", format)
 	}
 }
 
