@@ -21,13 +21,16 @@ import (
 )
 
 func main() {
-	var outPath, graphPath, classificationsPath, format, buildStatusPath, stableStatusPath, documentNamespacePath, validatorPath string
+	var outPath, graphPath, classificationsPath, format, buildStatusPath, stableStatusPath, documentNamespacePath, documentNamespace, buildVersion, vcsRevision, validatorPath string
 	flag.StringVar(&outPath, "out", "", "The path to write the generated SPDX SBOM.")
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the SPDX SBOM.")
 	flag.StringVar(&buildStatusPath, "created_from_status_file", "", "Path to a Bazel volatile-status.txt file to read BUILD_TIMESTAMP and stable build identity values from.")
 	flag.StringVar(&stableStatusPath, "stable_status_file", "", "Path to a Bazel stable-status.txt file to read stable build identity values from.")
+	flag.StringVar(&buildVersion, "build_version", "", "Build version to place in the subject package versionInfo.")
+	flag.StringVar(&vcsRevision, "vcs_revision", "", "VCS revision to place in the subject package versionInfo when --build_version is unset.")
+	flag.StringVar(&documentNamespace, "document_namespace", "", "The SPDX document namespace. If unset, --document_namespace_file is used; if both are unset, a deterministic namespace is derived from the document subject.")
 	flag.StringVar(&documentNamespacePath, "document_namespace_file", "", "Path to a file whose content is used as the SPDX document namespace. If unset, a deterministic namespace is derived from the document subject.")
 	flag.StringVar(&validatorPath, "validator", "", "Optional runfiles path or executable path to the SPDX tools-java validator wrapper.")
 	flag.Parse()
@@ -60,10 +63,14 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("reading build status file: %w", err))
 	}
+	mergeBuildStatus(&buildStatus, buildVersion, vcsRevision)
 
-	documentNamespace, err := spdxnamespace.ReadFile(documentNamespacePath)
-	if err != nil {
-		panic(fmt.Errorf("reading document namespace file: %w", err))
+	if documentNamespace == "" {
+		var err error
+		documentNamespace, err = spdxnamespace.ReadFile(documentNamespacePath)
+		if err != nil {
+			panic(fmt.Errorf("reading document namespace file: %w", err))
+		}
 	}
 
 	doc, err := GenerateDocument(graph, classifications, buildStatus, documentNamespace)
@@ -95,7 +102,17 @@ func main() {
 	}
 }
 
+func mergeBuildStatus(buildStatus *sbom.BuildStatus, buildVersion, vcsRevision string) {
+	if buildVersion != "" {
+		buildStatus.BuildVersion = buildVersion
+	}
+	if vcsRevision != "" {
+		buildStatus.VCSRevision = vcsRevision
+	}
+}
+
 func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classifications, buildStatus sbom.BuildStatus, documentNamespace string) (*spdx.Document, error) {
+	graph = sbom.NormalizeGraph(graph)
 	spdxPackages := make([]*spdx.Package, 0)
 	labelToID := make(map[string]string)
 	idx := 0
@@ -147,7 +164,8 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 					Locator:  purl.String(),
 				},
 			},
-			PackageName: purl.Name,
+			PackageName:    purl.Name,
+			PackageVersion: purl.Version,
 		}
 		if subjectPackage == nil {
 			subjectPackage = pkg

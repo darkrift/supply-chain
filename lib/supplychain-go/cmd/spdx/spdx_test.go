@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,72 @@ func writePackageMetadata(t *testing.T, dir, name, label, purl string) string {
 		t.Fatalf("writing %s: %v", path, err)
 	}
 	return path
+}
+
+func TestGenerateDocument_RetainsPackageEdgesAcrossAliasesAndWrappers(t *testing.T) {
+	dir := t.TempDir()
+	root := writePackageMetadata(t, dir, "root.json", "//app:root", "pkg:bazel/app@1")
+	module := writePackageMetadata(t, dir, "module.json", "//module:a", "pkg:golang/example.com/module@v1")
+	dep := writePackageMetadata(t, dir, "dep.json", "//dep:dep", "pkg:golang/example.com/dep@v1")
+	graph := sbom.GraphConfig{
+		RootTarget: "//app:root",
+		Nodes: []sbom.NodeConfig{
+			{Label: "//app:root", MetadataFile: root},
+			{Label: "//app:wrapper"},
+			{Label: "//module:a", MetadataFile: module},
+			{Label: "//module:z", MetadataFile: module},
+			{Label: "//module:wrapper"},
+			{Label: "//dep:dep", MetadataFile: dep},
+		},
+		Edges: []sbom.EdgeConfig{
+			{From: "//app:root", To: "//app:wrapper", Type: "depends_on"},
+			{From: "//app:wrapper", To: "//module:z", Type: "depends_on"},
+			{From: "//module:z", To: "//module:a", Type: "depends_on"},
+			{From: "//module:z", To: "//module:wrapper", Type: "depends_on"},
+			{From: "//module:wrapper", To: "//dep:dep", Type: "depends_on"},
+		},
+	}
+	classifications, err := sbom.ComputeClassifications(graph, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output struct {
+		Packages      []struct{ SPDXID string }
+		Relationships []struct {
+			SpdxElementId      string
+			RelatedSpdxElement string
+			RelationshipType   string
+		}
+	}
+	if err := json.Unmarshal(data, &output); err != nil {
+		t.Fatal(err)
+	}
+	if len(output.Packages) != 3 {
+		t.Fatalf("got %d packages, want 3", len(output.Packages))
+	}
+	want := map[string]bool{
+		"SPDXRef-dep-0 DEPENDS_ON SPDXRef-dep-1":   true,
+		"SPDXRef-dep-1 DEPENDS_ON SPDXRef-dep-2":   true,
+		"SPDXRef-DOCUMENT DESCRIBES SPDXRef-dep-0": true,
+	}
+	for _, relationship := range output.Relationships {
+		key := relationship.SpdxElementId + " " + relationship.RelationshipType + " " + relationship.RelatedSpdxElement
+		if !want[key] {
+			t.Errorf("unexpected relationship %s", key)
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Errorf("missing relationships: %v", want)
+	}
 }
 
 func TestGenerateDocument_RequiredFieldsPopulated(t *testing.T) {
@@ -140,7 +207,7 @@ func TestGenerateDocument_UsesPURLDownloadQualifier(t *testing.T) {
 		},
 	}
 
-	doc, err := GenerateDocument(graph, classifications, time.Unix(0, 0).UTC())
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, "")
 	if err != nil {
 		t.Fatalf("GenerateDocument() error = %v", err)
 	}
@@ -162,7 +229,7 @@ func TestGenerateDocument_UsesPURLURLDownloadQualifier(t *testing.T) {
 		},
 	}
 
-	doc, err := GenerateDocument(graph, classifications, time.Unix(0, 0).UTC())
+	doc, err := GenerateDocument(graph, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, "")
 	if err != nil {
 		t.Fatalf("GenerateDocument() error = %v", err)
 	}
@@ -201,5 +268,76 @@ func TestGenerateDocument_RejectsInvalidConfiguredDocumentNamespace(t *testing.T
 
 	if _, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{}, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, namespace); err == nil {
 		t.Fatal("GenerateDocument() error = nil, want invalid namespace error")
+	}
+}
+
+func TestGenerateDocument_PackageVersionsAndPURLs(t *testing.T) {
+	cases := []struct {
+		name    string
+		purl    string
+		want    string
+		version string
+	}{
+		{"debian", "pkg:deb/debian/busybox-static@1%3A1.37.0-6%2Bb8?arch=amd64", "pkg:deb/debian/busybox-static@1:1.37.0-6%2Bb8?arch=amd64", "1:1.37.0-6+b8"},
+		{"docker", "pkg:docker/distroless/cc-debian13@sha256%3Aabcdef?repository_url=gcr.io", "pkg:docker/distroless/cc-debian13@sha256:abcdef?repository_url=gcr.io", "sha256:abcdef"},
+		{"no version", "pkg:generic/example", "pkg:generic/example", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			root := sbom.NodeConfig{Label: "//app:root", MetadataFile: writePackageMetadata(t, dir, "root.json", "//app:root", "pkg:bazel/app@1.0.0")}
+			dep := sbom.NodeConfig{Label: "//lib:dep", MetadataFile: writePackageMetadata(t, dir, "dep.json", "//lib:dep", c.purl)}
+			classifications := sbom.Classifications{
+				RootComponent: &root,
+				Dependencies: sbom.DependencyNodes{
+					Direct:     []sbom.NodeConfig{dep},
+					Transitive: []sbom.NodeConfig{{Label: "//lib:transitive", MetadataFile: dep.MetadataFile}},
+				},
+			}
+			doc, err := GenerateDocument(sbom.GraphConfig{}, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC(), BuildVersion: "dev"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(doc.Packages) != 3 {
+				t.Fatalf("len(Packages) = %d, want 3", len(doc.Packages))
+			}
+			if doc.Packages[0].PackageVersion != "dev" {
+				t.Errorf("subject version = %q, want dev", doc.Packages[0].PackageVersion)
+			}
+			for _, pkg := range doc.Packages[1:] {
+				if pkg.PackageVersion != c.version {
+					t.Errorf("PackageVersion = %q, want %q", pkg.PackageVersion, c.version)
+				}
+				if got := pkg.PackageExternalReferences[0].Locator; got != c.want {
+					t.Errorf("PURL = %q, want %q", got, c.want)
+				}
+			}
+			data, err := json.Marshal(doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var serialized struct {
+				Packages []map[string]json.RawMessage `json:"packages"`
+			}
+			if err := json.Unmarshal(data, &serialized); err != nil {
+				t.Fatal(err)
+			}
+			for _, pkg := range serialized.Packages[1:] {
+				raw, present := pkg["versionInfo"]
+				if c.version == "" {
+					if present {
+						t.Error("versionInfo must be omitted for an unknown version")
+					}
+				} else {
+					var version string
+					if err := json.Unmarshal(raw, &version); err != nil {
+						t.Fatal(err)
+					}
+					if version != c.version {
+						t.Errorf("versionInfo = %q, want %q", version, c.version)
+					}
+				}
+			}
+		})
 	}
 }

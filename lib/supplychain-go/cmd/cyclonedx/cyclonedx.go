@@ -16,13 +16,16 @@ import (
 )
 
 func main() {
-	var outPath, graphPath, classificationsPath, format, validatorPath, buildStatusPath, stableStatusPath, serialNumberPath string
+	var outPath, graphPath, classificationsPath, format, validatorPath, buildStatusPath, stableStatusPath, serialNumberPath, buildVersion, vcsRevision, serialNumber string
 	flag.StringVar(&outPath, "out", "", "The path to write the generated CycloneDX SBOM.")
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the CycloneDX SBOM (json or xml).")
 	flag.StringVar(&buildStatusPath, "created_from_status_file", "", "Path to a Bazel volatile-status.txt file to read BUILD_TIMESTAMP and stable build identity values from.")
 	flag.StringVar(&stableStatusPath, "stable_status_file", "", "Path to a Bazel stable-status.txt file to read stable build identity values from.")
+	flag.StringVar(&buildVersion, "build_version", "", "Build version to place in metadata.component.version.")
+	flag.StringVar(&vcsRevision, "vcs_revision", "", "VCS revision to place in metadata.component.externalReferences.")
+	flag.StringVar(&serialNumber, "serial_number", "", "CycloneDX BOM serialNumber in urn:uuid form.")
 	flag.StringVar(&serialNumberPath, "serial_number_file", "", "Path to a file containing the CycloneDX BOM serialNumber.")
 	flag.StringVar(&validatorPath, "validator", "", "Optional runfiles path or executable path to the CycloneDX CLI validator.")
 	flag.Parse()
@@ -66,11 +69,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error reading build status file: %v\n", err)
 		os.Exit(1)
 	}
+	mergeBuildStatus(&buildStatus, buildVersion, vcsRevision)
 
-	serialNumber, err := readSerialNumber(serialNumberPath)
+	fileSerialNumber, err := readSerialNumber(serialNumberPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading serial number file: %v\n", err)
 		os.Exit(1)
+	}
+	if serialNumber == "" {
+		serialNumber = fileSerialNumber
+	}
+	if serialNumber != "" {
+		if err := validateSerialNumber(serialNumber); err != nil {
+			fmt.Fprintf(os.Stderr, "Error validating serial number: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	bom, err := GenerateBOM(graph, classifications, buildStatus, serialNumber)
@@ -109,7 +122,17 @@ func main() {
 	}
 }
 
+func mergeBuildStatus(buildStatus *sbom.BuildStatus, buildVersion, vcsRevision string) {
+	if buildVersion != "" {
+		buildStatus.BuildVersion = buildVersion
+	}
+	if vcsRevision != "" {
+		buildStatus.VCSRevision = vcsRevision
+	}
+}
+
 func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications, buildStatus sbom.BuildStatus, serialNumber string) (*cdx.BOM, error) {
+	graph = sbom.NormalizeGraph(graph)
 	components := make([]cdx.Component, 0)
 	labelToBOMRef := make(map[string]string)
 	var rootComponent *cdx.Component
@@ -301,10 +324,17 @@ func readSerialNumber(path string) (string, error) {
 	if serialNumber == "" {
 		return "", fmt.Errorf("%s is empty", path)
 	}
-	if !cyclonedxSerialNumberPattern.MatchString(serialNumber) {
-		return "", fmt.Errorf("%s must contain a CycloneDX serialNumber in urn:uuid form", path)
+	if err := validateSerialNumber(serialNumber); err != nil {
+		return "", fmt.Errorf("%s: %w", path, err)
 	}
 	return serialNumber, nil
+}
+
+func validateSerialNumber(serialNumber string) error {
+	if !cyclonedxSerialNumberPattern.MatchString(serialNumber) {
+		return fmt.Errorf("must be in urn:uuid form")
+	}
+	return nil
 }
 
 func appendExternalReference(existing *[]cdx.ExternalReference, reference cdx.ExternalReference) []cdx.ExternalReference {

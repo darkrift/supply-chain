@@ -183,3 +183,39 @@ func TestGetAttribute(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, &FakeAttribute{Name: "foo"}, a)
 }
+
+func TestPURLCanonicalEncoding(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"debian epoch and plus", "pkg:deb/debian/busybox-static@1%3A1.37.0-6%2Bb8?arch=amd64", "pkg:deb/debian/busybox-static@1:1.37.0-6%2Bb8?arch=amd64"},
+		{"docker digest", "pkg:docker/distroless/cc-debian13@sha256%3Aabcdef?repository_url=gcr.io", "pkg:docker/distroless/cc-debian13@sha256:abcdef?repository_url=gcr.io"},
+		{"qualifier encoding", "pkg:generic/example?note=space%20and%2Bplus&repository_url=https%3A%2F%2Fexample.com", "pkg:generic/example?note=space%20and%2Bplus&repository_url=https:%2F%2Fexample.com"},
+		{"literal percent escape", "pkg:generic/example@literal%253A%252B", "pkg:generic/example@literal%253A%252B"},
+		{"sub-delimiters", "pkg:generic/example%28one%29@1.0%2Bbuild%21%2A", "pkg:generic/example%28one%29@1.0%2Bbuild%21%2A"},
+		{"namespace and subpath", "pkg:generic/team%3Aone/example#src/a%3Ab%2Bc%20d", "pkg:generic/team:one/example#src/a:b%2Bc%20d"},
+		{"npm scope", "pkg:npm/%40scope/example@1.0.0", "pkg:npm/%40scope/example@1.0.0"},
+		{"no version", "pkg:generic/example", "pkg:generic/example"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			purl, err := packageurl.FromString(c.input)
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, c.want, purl.String())
+			decoded, err := packageurl.FromString(purl.String())
+			assert.NoError(t, err)
+			assert.Equal(t, purl, decoded)
+
+			metadata := &packageMetadata{Label: label.MustParse("//app:metadata"), PURL: purl}
+			data, err := json.Marshal(metadata)
+			assert.NoError(t, err)
+			var raw rawPackageMetadata
+			assert.NoError(t, json.Unmarshal(data, &raw))
+			assert.Equal(t, c.want, raw.PURL)
+		})
+	}
+}

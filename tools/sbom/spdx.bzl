@@ -7,42 +7,45 @@ def _spdx_impl(ctx):
     )
 
     out = ctx.actions.declare_file(out_path)
-    strict = ctx.attr._strict_validations[BuildSettingInfo].value
+    unstamped_out = ctx.actions.declare_file("%s.unstamped.%s" % (ctx.attr.name, "txt" if ctx.attr.format == "tag-value" else ctx.attr.format))
 
-    # creationInfo.created (SPDX 2.3, mandatory) comes from Bazel's own
-    # build-stamping mechanism: ctx.version_file (volatile-status.txt) holds
-    # a real BUILD_TIMESTAMP only when the build is invoked with --stamp;
-    # otherwise Bazel substitutes a fixed placeholder, which keeps this
-    # action's output (and therefore its cache key) deterministic by
-    # default. See https://bazel.build/reference/be/make-variables#stamp-flag.
-    extra_inputs = []
-    extra_args = []
-    extra_tools = []
+    generator_inputs = []
+    generator_args = [
+        "--build_version",
+        "dev",
+    ]
+    stamp_inputs = [unstamped_out]
+    stamp_args = []
+    stamp_tools = []
     if ctx.version_file:
-        extra_inputs.append(ctx.version_file)
-        extra_args.extend(["--created_from_status_file", ctx.version_file.path])
+        stamp_inputs.append(ctx.version_file)
+        stamp_args.extend(["--created_from_status_file", ctx.version_file.path])
     if ctx.info_file:
-        extra_inputs.append(ctx.info_file)
-        extra_args.extend(["--stable_status_file", ctx.info_file.path])
+        stamp_inputs.append(ctx.info_file)
+        stamp_args.extend(["--stable_status_file", ctx.info_file.path])
     if ctx.file.document_namespace != None:
-        extra_inputs.append(ctx.file.document_namespace)
-        extra_args.extend(["--document_namespace_file", ctx.file.document_namespace.path])
-    if strict:
+        stamp_inputs.append(ctx.file.document_namespace)
+        stamp_args.extend(["--document_namespace_file", ctx.file.document_namespace.path])
+        generator_args.extend([
+            "--document_namespace",
+            "https://spdx.org/spdxdocs/%s-unstamped" % ctx.attr.name,
+        ])
+
+    if ctx.attr._strict_validations[BuildSettingInfo].value:
         spdx_validator = ctx.toolchains["//sbom:spdx_validator_toolchain_type"]
-        extra_args.extend(["--validator", spdx_validator.validator.path])
-        extra_tools.append(spdx_validator.files_to_run)
+        stamp_args.extend(["--validator", spdx_validator.validator.path])
+        stamp_tools.append(spdx_validator.files_to_run)
 
     inputs = depset(
-        extra_inputs,
+        generator_inputs,
         transitive = [
             ctx.attr._spdx[DefaultInfo].data_runfiles.files,
             ctx.attr.sbom[DefaultInfo].files,
         ],
     )
     ctx.actions.run(
-        outputs = [out],
+        outputs = [unstamped_out],
         inputs = inputs,
-        tools = extra_tools,
         executable = ctx.attr._spdx[DefaultInfo].files_to_run,
         arguments = [
             "--graph",
@@ -50,10 +53,25 @@ def _spdx_impl(ctx):
             "--classifications",
             ctx.attr.sbom[SbomInfo].classifications.path,
             "--out",
+            unstamped_out.path,
+            "--format",
+            ctx.attr.format,
+        ] + generator_args,
+    )
+
+    ctx.actions.run(
+        outputs = [out],
+        inputs = stamp_inputs,
+        tools = stamp_tools,
+        executable = ctx.attr._spdxstamp[DefaultInfo].files_to_run,
+        arguments = [
+            "--in",
+            unstamped_out.path,
+            "--out",
             out.path,
             "--format",
             ctx.attr.format,
-        ] + extra_args,
+        ] + stamp_args,
     )
 
     return [
@@ -71,6 +89,7 @@ spdx = rule(
         "format": attr.string(default = "json", values = ["json", "yaml", "tag-value"], doc = "The output format for the SPDX SBOM."),
         "out": attr.output(doc = "The output file for the SPDX SBOM."),
         "_spdx": attr.label(default = "@supply-chain-go//cmd/spdx", doc = "The spdx tool to use.", executable = True, cfg = "exec"),
+        "_spdxstamp": attr.label(default = "@supply-chain-go//cmd/spdxstamp", doc = "The spdx stamping tool to use.", executable = True, cfg = "exec"),
         "_strict_validations": attr.label(
             default = "//sbom:strict_validations",
             doc = "Whether to validate generated reports with upstream SPDX tools-java. See //sbom:strict_validations.",

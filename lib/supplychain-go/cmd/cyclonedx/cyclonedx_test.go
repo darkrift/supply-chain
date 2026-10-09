@@ -3,12 +3,53 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom"
 )
+
+func TestGenerateBOM_RetainsPackageEdgesAcrossAliasesAndWrappers(t *testing.T) {
+	dir := t.TempDir()
+	root := sbom.NodeConfig{Label: "//app:root", MetadataFile: writePackageMetadata(t, dir, "root.json", "//app:root", "pkg:bazel/app@1.0.0")}
+	module := sbom.NodeConfig{Label: "//module:a", MetadataFile: writePackageMetadata(t, dir, "module.json", "//module:a", "pkg:golang/example.com/module@1.0.0")}
+	alias := sbom.NodeConfig{Label: "//module:z", MetadataFile: module.MetadataFile}
+	dep := sbom.NodeConfig{Label: "//dep:cbor", MetadataFile: writePackageMetadata(t, dir, "dep.json", "//dep:cbor", "pkg:golang/example.com/cbor@1.0.0")}
+	graph := sbom.GraphConfig{
+		RootTarget: root.Label,
+		Nodes:      []sbom.NodeConfig{root, module, alias, dep, {Label: "//app:wrapper"}, {Label: "//module:wrapper"}},
+		Edges: []sbom.EdgeConfig{
+			{From: root.Label, To: "//app:wrapper", Type: "depends_on"},
+			{From: "//app:wrapper", To: alias.Label, Type: "depends_on"},
+			{From: alias.Label, To: "//module:wrapper", Type: "depends_on"},
+			{From: "//module:wrapper", To: dep.Label, Type: "depends_on"},
+		},
+	}
+	classifications, err := sbom.ComputeClassifications(graph, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bom, err := GenerateBOM(graph, classifications, sbom.BuildStatus{}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bom.Dependencies == nil {
+		t.Fatal("Dependencies is nil")
+	}
+	got := map[string][]string{}
+	for _, dependency := range *bom.Dependencies {
+		got[dependency.Ref] = *dependency.Dependencies
+	}
+	want := map[string][]string{
+		"pkg:bazel/app@1.0.0":                 {"pkg:golang/example.com/module@1.0.0"},
+		"pkg:golang/example.com/module@1.0.0": {"pkg:golang/example.com/cbor@1.0.0"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Dependencies = %v, want %v", got, want)
+	}
+}
 
 func writePackageMetadata(t *testing.T, dir, name, label, purl string) string {
 	t.Helper()
@@ -166,5 +207,40 @@ func TestReadSerialNumberRejectsInvalidValue(t *testing.T) {
 
 	if _, err := readSerialNumber(path); err == nil {
 		t.Fatal("readSerialNumber() error = nil, want invalid serial number error")
+	}
+}
+
+func TestGenerateBOM_PURLReferencesUseConsistentEncoding(t *testing.T) {
+	dir := t.TempDir()
+	root := sbom.NodeConfig{Label: "//app:root", MetadataFile: writePackageMetadata(t, dir, "root.json", "//app:root", "pkg:bazel/app@1.0.0")}
+	dep := sbom.NodeConfig{Label: "//lib:dep", MetadataFile: writePackageMetadata(t, dir, "dep.json", "//lib:dep", "pkg:deb/debian/busybox-static@1%3A1.37.0-6%2Bb8?arch=amd64")}
+	graph := sbom.GraphConfig{
+		Edges: []sbom.EdgeConfig{{From: root.Label, To: dep.Label, Type: "depends_on"}},
+	}
+	classifications := sbom.Classifications{
+		RootComponent: &root,
+		Dependencies:  sbom.DependencyNodes{Direct: []sbom.NodeConfig{dep}},
+	}
+	bom, err := GenerateBOM(graph, classifications, sbom.BuildStatus{Created: time.Unix(0, 0).UTC()}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bom.Components == nil || len(*bom.Components) != 1 {
+		t.Fatalf("Components = %v, want one dependency", bom.Components)
+	}
+	const want = "pkg:deb/debian/busybox-static@1:1.37.0-6%2Bb8?arch=amd64"
+	component := (*bom.Components)[0]
+	if component.PackageURL != want || component.BOMRef != want {
+		t.Errorf("component references = (%q, %q), want %q", component.PackageURL, component.BOMRef, want)
+	}
+	if component.Version != "1:1.37.0-6+b8" {
+		t.Errorf("Version = %q, want decoded version", component.Version)
+	}
+	if bom.Dependencies == nil || len(*bom.Dependencies) != 1 {
+		t.Fatalf("Dependencies = %v, want one edge", bom.Dependencies)
+	}
+	dependency := (*bom.Dependencies)[0]
+	if dependency.Dependencies == nil || len(*dependency.Dependencies) != 1 || (*dependency.Dependencies)[0] != want {
+		t.Errorf("dependency references = %v, want %q", dependency.Dependencies, want)
 	}
 }
