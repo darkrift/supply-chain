@@ -82,6 +82,9 @@ func TestGenerateBOM_WithoutDownloadQualifierOmitsDistributionReference(t *testi
 	if refs := (*bom.Components)[0].ExternalReferences; refs != nil {
 		t.Fatalf("ExternalReferences = %#v, want nil", *refs)
 	}
+	if licenses := (*bom.Components)[0].Licenses; licenses != nil {
+		t.Fatalf("Licenses = %#v, want nil when no component license is known", *licenses)
+	}
 }
 
 func assertDistributionReference(t *testing.T, component cdx.Component, wantURL string) {

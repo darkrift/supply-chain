@@ -130,6 +130,8 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 		pkg := &spdx.Package{
 			PackageSPDXIdentifier:   common.ElementID(elementID),
 			PackageDownloadLocation: downloadLocation,
+			PackageLicenseConcluded: "NOASSERTION",
+			PackageLicenseDeclared:  "NOASSERTION",
 			PackageExternalReferences: []*spdx.PackageExternalReference{
 				{
 					Category: "PACKAGE-MANAGER",

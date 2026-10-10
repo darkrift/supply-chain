@@ -113,6 +113,12 @@ func TestGenerateDocument_RequiredFieldsPopulated(t *testing.T) {
 		if pkg.PackageDownloadLocation == "" {
 			t.Errorf("PackageDownloadLocation for %s is empty, want an SPDX sentinel value", pkg.PackageName)
 		}
+		if pkg.PackageLicenseConcluded != "NOASSERTION" {
+			t.Errorf("PackageLicenseConcluded for %s = %q, want NOASSERTION", pkg.PackageName, pkg.PackageLicenseConcluded)
+		}
+		if pkg.PackageLicenseDeclared != "NOASSERTION" {
+			t.Errorf("PackageLicenseDeclared for %s = %q, want NOASSERTION", pkg.PackageName, pkg.PackageLicenseDeclared)
+		}
 	}
 }
 
