@@ -5,13 +5,11 @@ go_library(
     srcs = [
         "classify.go",
         "genconfig.go",
-        "schema_validate.go",
+        "validate.go",
     ],
     importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom",
     visibility = ["//:__subpackages__"],
-    deps = [
-        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
-    ],
+    deps = ["@rules_go//go/runfiles"],
 )
 
 go_test(

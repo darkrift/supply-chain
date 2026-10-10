@@ -13,10 +13,9 @@ filegroup(
     srcs = glob(["**"]),
 )
 
-# Disabled by default: strict generator mode re-parses and re-validates every
-# generated JSON SBOM against the (large) vendored CycloneDX/SPDX JSON Schemas
-# before the generator exits, which has a real cost across a big dependency
-# graph. Opt in per-invocation with:
+# Disabled by default: strict validation runs the upstream CycloneDX CLI or
+# SPDX tools-java validator against generated reports, which has a real cost
+# across a big dependency graph. Opt in per-invocation with:
 #   bazel build //some:target --//sbom:strict_validations
 # or flip the default for a whole build with --//sbom:strict_validations=true
 # in a bazelrc config.
@@ -25,12 +24,18 @@ bool_flag(
     build_setting_default = False,
 )
 
+toolchain_type(name = "cyclonedx_validator_toolchain_type")
+
+toolchain_type(name = "spdx_validator_toolchain_type")
+
 bzl_library(
     name = "sbom",
     srcs = [
         ":cyclonedx.bzl",
+        ":extensions.bzl",
         ":sbom.bzl",
         ":spdx.bzl",
+        ":validators.bzl",
         "//:core_metadata",
         "//gather_metadata",
     ],

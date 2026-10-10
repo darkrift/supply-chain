@@ -21,17 +21,13 @@ import (
 )
 
 func main() {
-	var outPath, graphPath, classificationsPath, format, buildStatusPath, schemaPath string
-	var strict bool
-	var auxSchemaPaths stringList
+	var outPath, graphPath, classificationsPath, format, buildStatusPath, validatorPath string
 	flag.StringVar(&outPath, "out", "", "The path to write the generated SPDX SBOM.")
 	flag.StringVar(&graphPath, "graph", "", "The path to the graph JSON file.")
 	flag.StringVar(&classificationsPath, "classifications", "", "The path to the classifications JSON file.")
 	flag.StringVar(&format, "format", "json", "The output format of the SPDX SBOM.")
 	flag.StringVar(&buildStatusPath, "created_from_status_file", "", "Path to a Bazel volatile-status.txt file to read a BUILD_TIMESTAMP from for creationInfo.created. If unset, or the file has no BUILD_TIMESTAMP key, a fixed deterministic timestamp (the Unix epoch) is used instead, matching Bazel's own --nostamp default.")
-	flag.BoolVar(&strict, "strict", false, "Validate the generated JSON SBOM against --schema before exiting.")
-	flag.StringVar(&schemaPath, "schema", "", "The SPDX JSON Schema to use with --strict.")
-	flag.Var(&auxSchemaPaths, "aux_schema", "Path to an additional schema referenced by --schema via \"$ref\" (repeatable).")
+	flag.StringVar(&validatorPath, "validator", "", "Optional runfiles path or executable path to the SPDX tools-java validator wrapper.")
 	flag.Parse()
 
 	if graphPath == "" || classificationsPath == "" {
@@ -85,17 +81,11 @@ func main() {
 		panic(fmt.Sprintf("'%s' is not a supported format", format))
 	}
 
-	if strict {
-		if format != "json" {
-			panic("--strict schema validation is only supported for json output")
-		}
-		if schemaPath == "" {
-			panic("--schema is required when --strict is set")
-		}
-		must(sbom.ValidateJSONSchemaBytes(schemaPath, auxSchemaPaths, buf.Bytes()))
-	}
-
 	must(os.WriteFile(outPath, buf.Bytes(), 0664))
+
+	if validatorPath != "" {
+		must(sbom.RunValidator(validatorPath, outPath))
+	}
 }
 
 func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classifications, created time.Time) (*spdx.Document, error) {
@@ -275,15 +265,4 @@ func readBuildTimestamp(path string) (time.Time, error) {
 	}
 
 	return time.Unix(0, 0).UTC(), nil
-}
-
-type stringList []string
-
-func (s *stringList) String() string {
-	return fmt.Sprint([]string(*s))
-}
-
-func (s *stringList) Set(v string) error {
-	*s = append(*s, v)
-	return nil
 }
