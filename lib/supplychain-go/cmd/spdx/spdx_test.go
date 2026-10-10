@@ -109,6 +109,11 @@ func TestGenerateDocument_RequiredFieldsPopulated(t *testing.T) {
 	if doc.CreationInfo.Created != wantCreated {
 		t.Errorf("CreationInfo.Created = %q, want %q", doc.CreationInfo.Created, wantCreated)
 	}
+	for _, pkg := range doc.Packages {
+		if pkg.PackageDownloadLocation == "" {
+			t.Errorf("PackageDownloadLocation for %s is empty, want an SPDX sentinel value", pkg.PackageName)
+		}
+	}
 }
 
 func TestGenerateDocument_NoRootFallsBackToFirstPackage(t *testing.T) {
@@ -130,6 +135,50 @@ func TestGenerateDocument_NoRootFallsBackToFirstPackage(t *testing.T) {
 	}
 	if doc.DocumentName != "dep" {
 		t.Errorf("DocumentName = %q, want %q", doc.DocumentName, "dep")
+	}
+}
+
+func TestGenerateDocument_UsesPURLDownloadQualifier(t *testing.T) {
+	dir := t.TempDir()
+	depMeta := writePackageMetadata(t, dir, "dep.json", "//lib:dep", "pkg:golang/github.com/example/dep@v1.2.3?download_url=https://example.com/dep.tar.gz")
+
+	graph := sbom.GraphConfig{
+		Nodes: []sbom.NodeConfig{{Label: "//lib:dep", MetadataFile: depMeta}},
+	}
+	classifications := sbom.Classifications{
+		Dependencies: sbom.DependencyNodes{
+			Direct: []sbom.NodeConfig{{Label: "//lib:dep", MetadataFile: depMeta}},
+		},
+	}
+
+	doc, err := GenerateDocument(graph, classifications, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatalf("GenerateDocument() error = %v", err)
+	}
+	if got, want := doc.Packages[0].PackageDownloadLocation, "https://example.com/dep.tar.gz"; got != want {
+		t.Errorf("PackageDownloadLocation = %q, want %q", got, want)
+	}
+}
+
+func TestGenerateDocument_UsesPURLURLDownloadQualifier(t *testing.T) {
+	dir := t.TempDir()
+	depMeta := writePackageMetadata(t, dir, "dep.json", "//lib:dep", "pkg:golang/github.com/example/dep@v1.2.3?url_download=https://example.com/dep.tar.gz")
+
+	graph := sbom.GraphConfig{
+		Nodes: []sbom.NodeConfig{{Label: "//lib:dep", MetadataFile: depMeta}},
+	}
+	classifications := sbom.Classifications{
+		Dependencies: sbom.DependencyNodes{
+			Direct: []sbom.NodeConfig{{Label: "//lib:dep", MetadataFile: depMeta}},
+		},
+	}
+
+	doc, err := GenerateDocument(graph, classifications, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatalf("GenerateDocument() error = %v", err)
+	}
+	if got, want := doc.Packages[0].PackageDownloadLocation, "https://example.com/dep.tar.gz"; got != want {
+		t.Errorf("PackageDownloadLocation = %q, want %q", got, want)
 	}
 }
 

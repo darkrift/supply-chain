@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	supplychain "github.com/bazel-contrib/supply-chain/lib/supplychain-go"
@@ -120,6 +121,22 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 			Type:       cdx.ComponentTypeLibrary,
 			Name:       fullName,
 			PackageURL: bomRef,
+		}
+
+		downloadLocation := ""
+		qualifiers := purl.Qualifiers.Map()
+		if qualifier := strings.TrimSpace(qualifiers["download_url"]); qualifier != "" {
+			downloadLocation = qualifier
+		} else if qualifier := strings.TrimSpace(qualifiers["url_download"]); qualifier != "" {
+			downloadLocation = qualifier
+		}
+		if downloadLocation != "" {
+			component.ExternalReferences = &[]cdx.ExternalReference{
+				{
+					Type: cdx.ERTypeDistribution,
+					URL:  downloadLocation,
+				},
+			}
 		}
 
 		// Add version if available

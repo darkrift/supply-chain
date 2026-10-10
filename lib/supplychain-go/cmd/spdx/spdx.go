@@ -119,8 +119,17 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 			subjectPURL = purl.String()
 		}
 
+		downloadLocation := "NOASSERTION"
+		qualifiers := purl.Qualifiers.Map()
+		if qualifier := strings.TrimSpace(qualifiers["download_url"]); qualifier != "" {
+			downloadLocation = qualifier
+		} else if qualifier := strings.TrimSpace(qualifiers["url_download"]); qualifier != "" {
+			downloadLocation = qualifier
+		}
+
 		pkg := &spdx.Package{
-			PackageSPDXIdentifier: common.ElementID(elementID),
+			PackageSPDXIdentifier:   common.ElementID(elementID),
+			PackageDownloadLocation: downloadLocation,
 			PackageExternalReferences: []*spdx.PackageExternalReference{
 				{
 					Category: "PACKAGE-MANAGER",
