@@ -1,47 +1,33 @@
+load("@aspect_bazel_lib//lib:stamping.bzl", "STAMP_ATTRS", "maybe_stamp")
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("providers.bzl", "SbomInfo")
 
-def _cyclonedx_impl(ctx):
-    out_path = ctx.attr.out.name if ctx.attr.out != None else "%s.json" % ctx.attr.name
-    out = ctx.actions.declare_file(out_path)
-    unstamped_out = ctx.actions.declare_file("%s.unstamped.%s" % (ctx.attr.name, ctx.attr.format))
+def _cyclonedx_out_path(ctx):
+    return ctx.attr.out.name if ctx.attr.out != None else "%s.%s" % (ctx.attr.name, ctx.attr.format)
 
-    generator_inputs = []
-    generator_args = [
-        "--build_version",
-        "dev",
-        "--vcs_revision",
-        "unknown",
-        "--serial_number",
-        "urn:uuid:00000000-0000-0000-0000-000000000000",
-    ]
-    stamp_inputs = [unstamped_out]
-    stamp_args = []
-    stamp_tools = []
-    if ctx.version_file:
-        stamp_inputs.append(ctx.version_file)
-        stamp_args.extend(["--created_from_status_file", ctx.version_file.path])
-    if ctx.info_file:
-        stamp_inputs.append(ctx.info_file)
-        stamp_args.extend(["--stable_status_file", ctx.info_file.path])
-    if ctx.file.serial_number != None:
-        stamp_inputs.append(ctx.file.serial_number)
-        stamp_args.extend(["--serial_number_file", ctx.file.serial_number.path])
-    if ctx.attr.format in ["json", "xml"] and ctx.attr._strict_validations[BuildSettingInfo].value:
-        cyclonedx_validator = ctx.toolchains["//sbom:cyclonedx_validator_toolchain_type"]
-        stamp_args.extend(["--validator", cyclonedx_validator.validator.path])
-        stamp_tools.append(cyclonedx_validator.files_to_run)
+def _cyclonedx_validator_args(ctx):
+    if not ctx.attr._strict_validations[BuildSettingInfo].value:
+        return [], []
 
+    validator = ctx.toolchains["//sbom:cyclonedx_validator_toolchain_type"]
+    return [
+        "--validator",
+        validator.validator.path,
+    ], [validator.files_to_run]
+
+def _cyclonedx_generate_action(ctx, out, extra_inputs = [], extra_args = [], extra_tools = []):
     inputs = depset(
-        generator_inputs,
+        extra_inputs,
         transitive = [
             ctx.attr._cyclonedx[DefaultInfo].data_runfiles.files,
             ctx.attr.sbom[DefaultInfo].files,
         ],
     )
     ctx.actions.run(
-        outputs = [unstamped_out],
+        outputs = [out],
         inputs = inputs,
+        tools = extra_tools,
         executable = ctx.attr._cyclonedx[DefaultInfo].files_to_run,
         arguments = [
             "--graph",
@@ -49,26 +35,51 @@ def _cyclonedx_impl(ctx):
             "--classifications",
             ctx.attr.sbom[SbomInfo].classifications.path,
             "--out",
-            unstamped_out.path,
+            out.path,
             "--format",
             ctx.attr.format,
-        ] + generator_args,
+        ] + extra_args,
     )
 
+def _cyclonedx_stamp_action(ctx, src, out, extra_args, extra_inputs, extra_tools):
     ctx.actions.run(
         outputs = [out],
-        inputs = stamp_inputs,
-        tools = stamp_tools,
+        inputs = [src] + extra_inputs,
+        tools = extra_tools,
         executable = ctx.attr._cyclonedxstamp[DefaultInfo].files_to_run,
         arguments = [
             "--in",
-            unstamped_out.path,
+            src.path,
             "--out",
             out.path,
             "--format",
             ctx.attr.format,
-        ] + stamp_args,
+        ] + extra_args,
     )
+
+def _cyclonedx_impl(ctx):
+    out = ctx.actions.declare_file(_cyclonedx_out_path(ctx))
+    stamp = maybe_stamp(ctx)
+    validator_args, validator_tools = _cyclonedx_validator_args(ctx)
+
+    if not stamp:
+        _cyclonedx_generate_action(ctx, out, extra_args = validator_args, extra_tools = validator_tools)
+        return [DefaultInfo(files = depset([out]))]
+
+    unstamped = ctx.actions.declare_file("%s.unstamped.%s" % (ctx.attr.name, ctx.attr.format))
+    _cyclonedx_generate_action(ctx, unstamped)
+
+    stamp_inputs = []
+    stamp_args = []
+    stamp_inputs.append(stamp.volatile_status_file)
+    stamp_args.extend(["--created_from_status_file", stamp.volatile_status_file.path])
+    stamp_inputs.append(stamp.stable_status_file)
+    stamp_args.extend(["--stable_status_file", stamp.stable_status_file.path])
+    if ctx.file.serial_number != None:
+        stamp_inputs.append(ctx.file.serial_number)
+        stamp_args.extend(["--serial_number_file", ctx.file.serial_number.path])
+
+    _cyclonedx_stamp_action(ctx, unstamped, out, stamp_args + validator_args, stamp_inputs, validator_tools)
 
     return [
         DefaultInfo(files = depset([out])),
@@ -76,11 +87,11 @@ def _cyclonedx_impl(ctx):
 
 cyclonedx = rule(
     _cyclonedx_impl,
-    attrs = {
+    attrs = dicts.add({
         "sbom": attr.label(doc = "The sbom target to generate the CycloneDX SBOM from."),
         "serial_number": attr.label(
             allow_single_file = True,
-            doc = "Optional file target whose content is used as the CycloneDX BOM serialNumber. The content must be in urn:uuid form.",
+            doc = "Optional file target whose content is used as the CycloneDX BOM serialNumber when stamping is enabled.",
         ),
         "format": attr.string(default = "json", values = ["json", "xml"], doc = "The output format for the CycloneDX SBOM."),
         "out": attr.output(doc = "The output file for the CycloneDX SBOM."),
@@ -90,6 +101,6 @@ cyclonedx = rule(
             default = "//sbom:strict_validations",
             doc = "Whether to validate generated reports with the upstream CycloneDX CLI. See //sbom:strict_validations.",
         ),
-    },
+    }, STAMP_ATTRS),
     toolchains = ["//sbom:cyclonedx_validator_toolchain_type"],
 )

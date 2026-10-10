@@ -9,27 +9,30 @@ def _maybe_out(out):
     return {} if out == None else {"out": out}
 
 def _stamped_cyclonedx_impl(name, sbom, format, out, serial_number_template, visibility):
-    serial_number = "{}_serial_number".format(name)
-    expand_template(
-        name = serial_number,
-        out = "{}.txt".format(serial_number),
-        stamp = -1,
-        stamp_substitutions = {
-            "{SERIAL_NUMBER}": "{{SBOM_SERIAL_NUMBER}}",
-        },
-        substitutions = {
-            "{SERIAL_NUMBER}": "urn:uuid:00000000-0000-0000-0000-000000000000",
-        },
-        template = [serial_number_template],
-    )
+    kwargs = _maybe_out(out)
+    if serial_number_template != "{SERIAL_NUMBER}":
+        serial_number = "{}_serial_number".format(name)
+        expand_template(
+            name = serial_number,
+            out = "{}.txt".format(serial_number),
+            stamp = -1,
+            stamp_substitutions = {
+                "{SERIAL_NUMBER}": "{{SBOM_SERIAL_NUMBER}}",
+            },
+            substitutions = {
+                "{SERIAL_NUMBER}": "urn:uuid:00000000-0000-0000-0000-000000000000",
+            },
+            template = [serial_number_template],
+        )
+        kwargs["serial_number"] = ":{}".format(serial_number)
 
     cyclonedx(
         name = name,
         format = format,
         sbom = sbom,
-        serial_number = ":{}".format(serial_number),
+        stamp = 1,
         visibility = visibility,
-        **_maybe_out(out)
+        **kwargs
     )
 
 stamped_cyclonedx = macro(
@@ -82,6 +85,7 @@ def _stamped_spdx_impl(name, sbom, format, out, document_namespace_template, vis
         document_namespace = ":{}".format(document_namespace),
         format = format,
         sbom = sbom,
+        stamp = 1,
         visibility = visibility,
         **_maybe_out(out)
     )

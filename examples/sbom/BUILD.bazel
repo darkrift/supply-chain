@@ -20,9 +20,9 @@ cyclonedx(
 expand_template(
     name = "lib_with_third_party_deps_spdx_namespace",
     out = "lib_with_third_party_deps_spdx_namespace.txt",
-    stamp = 1,
+    stamp = -1,
     stamp_substitutions = {
-        "{VERSION}": "{{STABLE_EXAMPLE_VERSION}}",
+        "{VERSION}": "{{STABLE_BUILD_VERSION}}",
     },
     substitutions = {
         "{VERSION}": "dev",
@@ -38,7 +38,7 @@ spdx(
 
 sbom(
     name = "acme_sbom",
-    target = "//vendor/acme:acme",
+    target = "//vendor/acme",
 )
 
 stamped_cyclonedx(
