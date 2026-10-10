@@ -38,7 +38,7 @@ load("@supply_chain_tools//sbom:validators.bzl", "cyclonedx_validator_toolchain"
 
 cyclonedx_validator_toolchain(
     name = "toolchain_impl",
-    binary = ":%s",
+    validator = ":%s",
 )
 
 toolchain(

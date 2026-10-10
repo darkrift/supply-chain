@@ -9,7 +9,7 @@ def _cyclonedx_impl(ctx):
     extra_tools = []
     if strict:
         cyclonedx_validator = ctx.toolchains["//sbom:cyclonedx_validator_toolchain_type"]
-        extra_args.extend(["--validator", cyclonedx_validator.binary.path])
+        extra_args.extend(["--validator", cyclonedx_validator.validator.path])
         extra_tools.append(cyclonedx_validator.files_to_run)
 
     inputs = depset(
