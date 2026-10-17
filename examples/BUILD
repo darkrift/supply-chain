@@ -24,3 +24,17 @@ license(
     kind = "@package_metadata//licenses/spdx:Apache-2.0",
     text = "LICENSE",
 )
+
+# A package available under a choice of licenses, parsed from an SPDX license
+# expression. This is how https://github.com/serde-rs/serde is licensed.
+license(
+    name = "dual_license",
+    expression = "Apache-2.0 OR MIT",
+)
+
+# `WITH` attaches an SPDX license exception to a license. Here the package is
+# available under either MIT, or Apache-2.0 combined with the LLVM exception.
+license(
+    name = "dual_license_with_exception",
+    expression = "MIT OR (Apache-2.0 WITH LLVM-exception)",
+)
