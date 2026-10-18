@@ -111,6 +111,20 @@ func (e LicenseExpression) IsSingle() bool {
 	return e.Kind != nil
 }
 
+// HasChoice returns whether the expression offers a choice between licenses,
+// i.e. contains an `OR` anywhere.
+func (e LicenseExpression) HasChoice() bool {
+	if e.Operator == LicenseOr {
+		return true
+	}
+	for _, o := range e.Operands {
+		if o.HasChoice() {
+			return true
+		}
+	}
+	return false
+}
+
 // Kinds returns all license kinds and exceptions referenced by the
 // expression, in order of appearance and without duplicates.
 func (e LicenseExpression) Kinds() []LicenseKind {
