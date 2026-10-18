@@ -10,6 +10,10 @@ type GenConfig struct {
 type NodeConfig struct {
 	Label        string `json:"label"`
 	MetadataFile string `json:"metadata_file"`
+
+	// ConcludedLicenseFile is the license attribute file overriding the declared
+	// license of the package. Set in the classifications by `ConcludedLicenses.Apply`.
+	ConcludedLicenseFile string `json:"concluded_license_file,omitempty"`
 }
 
 type EdgeConfig struct {

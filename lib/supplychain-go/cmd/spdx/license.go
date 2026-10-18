@@ -19,12 +19,12 @@ func newLicenseCollector() *licenseCollector {
 	return &licenseCollector{byID: map[string]*spdx.OtherLicense{}}
 }
 
-// declared returns the SPDX license expression for the package and records
+// expression returns the SPDX license expression of the attribute and records
 // the custom licenses it references.
 //
 // Custom exceptions (`AdditionRef-`) are only referenced from the expression:
 // SPDX 2.3 has no document-level definition for them.
-func (c *licenseCollector) declared(attribute *supplychain.LicenseAttribute) string {
+func (c *licenseCollector) expression(attribute *supplychain.LicenseAttribute) string {
 	if attribute == nil {
 		return "NOASSERTION"
 	}

@@ -1,0 +1,60 @@
+[
+  {
+    "purl": "pkg:deb/debian/libfoo@1.0?arch=amd64",
+    "licenses": [
+      {
+        "expression": "LGPL-2.1-only OR MIT"
+      }
+    ],
+    "evidence": null
+  },
+  {
+    "purl": "pkg:deb/debian/libfoo@1.0?arch=arm64",
+    "licenses": [
+      {
+        "expression": "LGPL-2.1-only OR MIT"
+      }
+    ],
+    "evidence": null
+  },
+  {
+    "purl": "pkg:generic/dual@1.0.0",
+    "licenses": [
+      {
+        "expression": "MIT OR Apache-2.0"
+      }
+    ],
+    "evidence": null
+  },
+  {
+    "purl": "pkg:generic/root@1.0.0",
+    "licenses": [
+      {
+        "license": {
+          "id": "MIT"
+        }
+      }
+    ],
+    "evidence": null
+  },
+  {
+    "purl": "pkg:generic/transitive@1.0.0",
+    "licenses": [
+      {
+        "expression": "GPL-2.0-only OR MIT"
+      }
+    ],
+    "evidence": null
+  },
+  {
+    "purl": "pkg:generic/untouched@1.0.0",
+    "licenses": [
+      {
+        "license": {
+          "id": "BSD-3-Clause"
+        }
+      }
+    ],
+    "evidence": null
+  }
+]

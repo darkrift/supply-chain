@@ -83,6 +83,13 @@ func main() {
 	}
 }
 
+// GenerateBOM generates the CycloneDX BOM.
+//
+// Without a concluded license for a component, its declared license is
+// reported as the component's `licenses`. With one, the concluded license is
+// the component's `licenses` and the declared license moves to
+// `evidence.licenses`, as described by
+// https://cyclonedx.org/use-cases/open-source-licensing/.
 func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (*cdx.BOM, error) {
 	components := make([]cdx.Component, 0)
 	labelToBOMRef := make(map[string]string)
@@ -123,7 +130,18 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 		if err != nil {
 			return cdx.Component{}, fmt.Errorf("error reading license of %s: %w", node.Label, err)
 		}
-		component.Licenses = licensesOf(licenseAttribute)
+		if node.ConcludedLicenseFile != "" {
+			override, err := sbom.ReadLicenseAttribute(node.ConcludedLicenseFile)
+			if err != nil {
+				return cdx.Component{}, fmt.Errorf("error reading concluded license of %s: %w", node.Label, err)
+			}
+			component.Licenses = licensesOf(override, cdx.LicenseAcknowledgementConcluded)
+			if declared := licensesOf(licenseAttribute, cdx.LicenseAcknowledgementDeclared); declared != nil {
+				component.Evidence = &cdx.Evidence{Licenses: declared}
+			}
+		} else {
+			component.Licenses = licensesOf(licenseAttribute, "")
+		}
 
 		labelToBOMRef[node.Label] = bomRef
 		return component, nil
@@ -239,16 +257,19 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 // A single license is represented as a license, using its SPDX identifier if
 // it is on the SPDX license list and its name otherwise. Anything else
 // (choices, combinations, exceptions) is an SPDX license expression.
-func licensesOf(attribute *supplychain.LicenseAttribute) *cdx.Licenses {
+//
+// The acknowledgement, when set, only applies to licenses: the CycloneDX
+// library has no acknowledgement on expressions.
+func licensesOf(attribute *supplychain.LicenseAttribute, acknowledgement cdx.LicenseAcknowledgement) *cdx.Licenses {
 	if attribute == nil {
 		return nil
 	}
 
 	root := attribute.Root()
 	if root.IsSingle() {
-		license := cdx.License{ID: root.Kind.Identifier}
+		license := cdx.License{ID: root.Kind.Identifier, Acknowledgement: acknowledgement}
 		if root.Kind.IsCustom() {
-			license = cdx.License{Name: root.Kind.Name}
+			license = cdx.License{Name: root.Kind.Name, Acknowledgement: acknowledgement}
 		}
 		return &cdx.Licenses{{License: &license}}
 	}

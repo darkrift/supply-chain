@@ -76,6 +76,9 @@ func main() {
 	}
 }
 
+// GenerateDocument generates the SPDX document. The concluded license of a
+// package is the one in its node's `ConcludedLicenseFile`, if any, otherwise
+// its declared license.
 func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classifications) (*spdx.Document, error) {
 	spdxPackages := make([]*spdx.Package, 0)
 	labelToID := make(map[string]string)
@@ -98,6 +101,17 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 			return nil, fmt.Errorf("reading license of %s: %w", node.Label, err)
 		}
 
+		purl := pkgMetadata.GetPURL()
+		declaredLicense := licenses.expression(licenseAttribute)
+		concludedLicense := declaredLicense
+		if node.ConcludedLicenseFile != "" {
+			override, err := sbom.ReadLicenseAttribute(node.ConcludedLicenseFile)
+			if err != nil {
+				return nil, fmt.Errorf("reading concluded license of %s: %w", node.Label, err)
+			}
+			concludedLicense = licenses.expression(override)
+		}
+
 		elementID := fmt.Sprintf("dep-%d", idx)
 		idx++
 
@@ -107,12 +121,12 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 				{
 					Category: "PACKAGE-MANAGER",
 					RefType:  "purl",
-					Locator:  pkgMetadata.GetPURL().String(),
+					Locator:  purl.String(),
 				},
 			},
-			PackageName:             pkgMetadata.GetPURL().Name,
-			PackageLicenseDeclared:  licenses.declared(licenseAttribute),
-			PackageLicenseConcluded: "NOASSERTION",
+			PackageName:             purl.Name,
+			PackageLicenseDeclared:  declaredLicense,
+			PackageLicenseConcluded: concludedLicense,
 		}
 
 		labelToID[node.Label] = elementID

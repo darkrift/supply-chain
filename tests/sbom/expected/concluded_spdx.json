@@ -1,0 +1,32 @@
+[
+  {
+    "purl": "pkg:deb/debian/libfoo@1.0?arch=amd64",
+    "declared": "LGPL-2.1-only OR MIT",
+    "concluded": "MIT"
+  },
+  {
+    "purl": "pkg:deb/debian/libfoo@1.0?arch=arm64",
+    "declared": "LGPL-2.1-only OR MIT",
+    "concluded": "MIT"
+  },
+  {
+    "purl": "pkg:generic/dual@1.0.0",
+    "declared": "MIT OR Apache-2.0",
+    "concluded": "MIT"
+  },
+  {
+    "purl": "pkg:generic/root@1.0.0",
+    "declared": "MIT",
+    "concluded": "MIT"
+  },
+  {
+    "purl": "pkg:generic/transitive@1.0.0",
+    "declared": "GPL-2.0-only OR MIT",
+    "concluded": "Apache-2.0 WITH LLVM-exception"
+  },
+  {
+    "purl": "pkg:generic/untouched@1.0.0",
+    "declared": "BSD-3-Clause",
+    "concluded": "BSD-3-Clause"
+  }
+]
