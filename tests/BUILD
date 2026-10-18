@@ -7,6 +7,7 @@ load("//:license_expression_test.bzl", "license_expression_test")
 load("//:license_json_test.bzl", "license_json_test")
 load("//:license_kind_test.bzl", "license_kind_test")
 load("//:purl_test.bzl", "purl_bazel_registry_test")
+load("//:sbom_concluded_licenses_test.bzl", "sbom_concluded_licenses_failure_test")
 
 license_expression_test(
     name = "license_expression_test",
@@ -216,4 +217,28 @@ license_expression_failure_test(
     name = "license_kind_invalid_identifier_test",
     kind = ":invalid_identifier_kind",
     message = "invalid license identifier 'LicenseRef-acme_internal'*found '_'",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_not_a_purl_test",
+    message = "'acme/lib@1.0.0' in `concluded_licenses` is not a valid key",
+    purl = "acme/lib@1.0.0",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_no_version_test",
+    message = "'pkg:maven/org.acme/lib' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_qualifiers_test",
+    message = "'pkg:maven/org.acme/lib@1.0.0?classifier=sources' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib@1.0.0?classifier=sources",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_subpath_test",
+    message = "'pkg:maven/org.acme/lib@1.0.0#sub' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib@1.0.0#sub",
 )

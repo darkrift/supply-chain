@@ -469,3 +469,40 @@ func TestGenerateDocument_LicenseExpressions(t *testing.T) {
 		t.Errorf("custom exception = %#v, want AdditionRef-acme-linking with the license text", custom.SubjectAddition)
 	}
 }
+
+func TestGenerateDocument_ConcludedLicenses(t *testing.T) {
+	dir := t.TempDir()
+	overridden := writeLicensedPackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"}},{"kind":{"identifier":"MIT","name":"MIT License"}}]},"label":"//x:license"}`)
+	concludedPath := filepath.Join(dir, "concluded.license.json")
+	if err := os.WriteFile(concludedPath, []byte(`{"expression":{"kind":{"identifier":"MIT","name":"MIT License"}},"label":"//legal"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	overridden.ConcludedLicenseFile = concludedPath
+	plain := writeLicensedPackage(t, dir, "plain", `{"expression":{"kind":{"identifier":"MIT","name":"MIT License"}},"label":"//x:license"}`)
+
+	doc, err := GenerateDocument(sbom.GraphConfig{}, sbom.Classifications{
+		Dependencies: sbom.DependencyNodes{Direct: []sbom.NodeConfig{overridden, plain}},
+	}, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatalf("GenerateDocument() error = %v", err)
+	}
+
+	got := map[string]string{}
+	for _, relationship := range relationshipsOf(doc) {
+		switch relationship.Type {
+		case spdx.RelationshipType_HasDeclaredLicense:
+			got[relationship.From.(*spdx.Package).Name+" declared"] = fmt.Sprintf("%T", relationship.To[0])
+		case spdx.RelationshipType_HasConcludedLicense:
+			got[relationship.From.(*spdx.Package).Name+" concluded"] = fmt.Sprintf("%T", relationship.To[0])
+		}
+	}
+	// The declared license is kept; only the overridden package has a conclusion.
+	want := map[string]string{
+		"dual declared":  "*v3_0.DisjunctiveLicenseSet",
+		"dual concluded": "*v3_0.ListedLicense",
+		"plain declared": "*v3_0.ListedLicense",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("license relationships = %v, want %v", got, want)
+	}
+}

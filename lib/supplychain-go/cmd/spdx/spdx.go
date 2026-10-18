@@ -76,12 +76,15 @@ func main() {
 	}
 }
 
-// GenerateDocument builds an SPDX 3.0.1 document from the graph.
+// GenerateDocument builds an SPDX 3.0.1 document from the graph. A package
+// with a concluded license (the file in its node's `ConcludedLicenseFile`)
+// gets a hasConcludedLicense relationship next to its hasDeclaredLicense one.
 func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classifications, created time.Time) (*spdx.Document, error) {
 	graph = sbom.NormalizeGraph(graph)
 	labelToPackage := make(map[string]*spdx.Package)
 	var packages []*spdx.Package
-	licenseOf := make(map[*spdx.Package]*supplychain.LicenseAttribute)
+	declaredOf := make(map[*spdx.Package]*supplychain.LicenseAttribute)
+	concludedOf := make(map[*spdx.Package]*supplychain.LicenseAttribute)
 
 	// Identify the document as a whole (name/namespace, below) by its
 	// subject: preferably the root component; failing that (e.g.
@@ -123,7 +126,14 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 			return fmt.Errorf("error reading license of %s: %w", node.Label, err)
 		}
 		if licenseAttribute != nil {
-			licenseOf[pkg] = licenseAttribute
+			declaredOf[pkg] = licenseAttribute
+		}
+		if node.ConcludedLicenseFile != "" {
+			override, err := sbom.ReadLicenseAttribute(node.ConcludedLicenseFile)
+			if err != nil {
+				return fmt.Errorf("reading concluded license of %s: %w", node.Label, err)
+			}
+			concludedOf[pkg] = override
 		}
 		packages = append(packages, pkg)
 		labelToPackage[node.Label] = pkg
@@ -170,7 +180,7 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 		})
 	}
 
-	licenses, licenseRelationships, err := declaredLicenses(packages, licenseOf, len(relationships))
+	licenses, licenseRelationships, err := licenseRelationships(packages, declaredOf, concludedOf, len(relationships))
 	if err != nil {
 		return nil, err
 	}

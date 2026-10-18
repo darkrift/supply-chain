@@ -93,6 +93,13 @@ func main() {
 	}
 }
 
+// GenerateBOM generates the CycloneDX BOM.
+//
+// Without a concluded license for a component, its declared license is
+// reported as the component's `licenses`. With one, the concluded license is
+// the component's `licenses` and the declared license moves to
+// `evidence.licenses`, as described by
+// https://cyclonedx.org/use-cases/open-source-licensing/.
 func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (*cdx.BOM, error) {
 	graph = sbom.NormalizeGraph(graph)
 	components := make([]cdx.Component, 0)
@@ -150,7 +157,18 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 		if err != nil {
 			return cdx.Component{}, fmt.Errorf("error reading license of %s: %w", node.Label, err)
 		}
-		component.Licenses = licensesOf(licenseAttribute)
+		if node.ConcludedLicenseFile != "" {
+			override, err := sbom.ReadLicenseAttribute(node.ConcludedLicenseFile)
+			if err != nil {
+				return cdx.Component{}, fmt.Errorf("error reading concluded license of %s: %w", node.Label, err)
+			}
+			component.Licenses = licensesOf(override, cdx.LicenseAcknowledgementConcluded)
+			if declared := licensesOf(licenseAttribute, cdx.LicenseAcknowledgementDeclared); declared != nil {
+				component.Evidence = &cdx.Evidence{Licenses: declared}
+			}
+		} else {
+			component.Licenses = licensesOf(licenseAttribute, "")
+		}
 
 		labelToBOMRef[node.Label] = bomRef
 		return component, nil
@@ -264,7 +282,10 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 // licensesOf converts the license attribute of a package to CycloneDX: a
 // license identified by its SPDX identifier, or by its name if it is custom.
 // Anything else is an SPDX license expression.
-func licensesOf(attribute *supplychain.LicenseAttribute) *cdx.Licenses {
+//
+// The acknowledgement, when set, only applies to licenses: the CycloneDX
+// library has no acknowledgement on expressions.
+func licensesOf(attribute *supplychain.LicenseAttribute, acknowledgement cdx.LicenseAcknowledgement) *cdx.Licenses {
 	if attribute == nil {
 		return nil
 	}
@@ -274,9 +295,9 @@ func licensesOf(attribute *supplychain.LicenseAttribute) *cdx.Licenses {
 		return &cdx.Licenses{{Expression: root.String()}}
 	}
 	kind := root.Kind
-	license := cdx.License{ID: kind.Identifier}
+	license := cdx.License{ID: kind.Identifier, Acknowledgement: acknowledgement}
 	if kind.IsCustom() {
-		license = cdx.License{Name: kind.Name}
+		license = cdx.License{Name: kind.Name, Acknowledgement: acknowledgement}
 		if license.Name == "" {
 			license.Name = kind.Identifier
 		}

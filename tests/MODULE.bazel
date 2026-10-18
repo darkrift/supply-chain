@@ -5,10 +5,12 @@ module(
 
 bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "jq.bzl", version = "0.7.1")
+bazel_dep(name = "rules_shell", version = "0.7.1")
 bazel_dep(name = "rules_testing", version = "0.9.0")
 bazel_dep(name = "package_metadata", version = "HEAD")
 bazel_dep(name = "package_metadata_extensions", version = "HEAD")
 bazel_dep(name = "supply-chain-go", version = "HEAD")
+bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 
 local_path_override(
     module_name = "package_metadata",
@@ -25,4 +27,9 @@ local_path_override(
 local_path_override(
     module_name = "supply-chain-go",
     path = "../lib/supplychain-go",
+)
+
+local_path_override(
+    module_name = "supply_chain_tools",
+    path = "../tools",
 )

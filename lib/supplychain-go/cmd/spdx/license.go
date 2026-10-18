@@ -30,10 +30,10 @@ type licenseKey struct {
 	exception bool
 }
 
-// declaredLicenses creates the license elements of the packages and the
-// hasDeclaredLicense relationships to them. Relationship ids start at
-// firstRelationship.
-func declaredLicenses(packages []*spdx.Package, licenseOf map[*spdx.Package]*supplychain.LicenseAttribute, firstRelationship int) ([]spdx.AnyElement, []*spdx.Relationship, error) {
+// licenseRelationships creates the license elements of the packages and the
+// hasDeclaredLicense and hasConcludedLicense relationships to them.
+// Relationship ids start at firstRelationship.
+func licenseRelationships(packages []*spdx.Package, declared, concluded map[*spdx.Package]*supplychain.LicenseAttribute, firstRelationship int) ([]spdx.AnyElement, []*spdx.Relationship, error) {
 	c := &licenseCollector{
 		byKey:    make(map[licenseKey]spdx.AnyElement),
 		variants: make(map[string]int),
@@ -41,25 +41,32 @@ func declaredLicenses(packages []*spdx.Package, licenseOf map[*spdx.Package]*sup
 	}
 	var relationships []*spdx.Relationship
 	for _, pkg := range packages {
-		attribute, ok := licenseOf[pkg]
-		if !ok {
-			continue
+		for _, kind := range []struct {
+			attributes map[*spdx.Package]*supplychain.LicenseAttribute
+			relation   spdx.RelationshipType
+		}{
+			{declared, spdx.RelationshipType_HasDeclaredLicense},
+			{concluded, spdx.RelationshipType_HasConcludedLicense},
+		} {
+			attribute, ok := kind.attributes[pkg]
+			if !ok {
+				continue
+			}
+			text, err := licenseText(attribute)
+			if err != nil {
+				return nil, nil, fmt.Errorf("reading the license text of %s: %w", pkg.Name, err)
+			}
+			node, err := c.node(attribute.Root(), text)
+			if err != nil {
+				return nil, nil, err
+			}
+			relationships = append(relationships, &spdx.Relationship{
+				ID:   fmt.Sprintf("rel-%d", firstRelationship+len(relationships)),
+				From: pkg,
+				To:   spdx.ElementList{node},
+				Type: kind.relation,
+			})
 		}
-		root := attribute.Root()
-		text, err := licenseText(attribute)
-		if err != nil {
-			return nil, nil, fmt.Errorf("reading the license text of %s: %w", pkg.Name, err)
-		}
-		node, err := c.node(root, text)
-		if err != nil {
-			return nil, nil, err
-		}
-		relationships = append(relationships, &spdx.Relationship{
-			ID:   fmt.Sprintf("rel-%d", firstRelationship+len(relationships)),
-			From: pkg,
-			To:   spdx.ElementList{node},
-			Type: spdx.RelationshipType_HasDeclaredLicense,
-		})
 	}
 	return c.elements, relationships, nil
 }

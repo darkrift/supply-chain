@@ -15,6 +15,8 @@ func main() {
 	flag.StringVar(&inputPath, "input", "", "Path to graph-only JSON from gather_metadata")
 	flag.StringVar(&outputPath, "output", "", "Path to write SBOM classifications")
 	flag.BoolVar(&allowMissingRootMetadata, "allow_missing_root_metadata", false, "Allow SBOM generation even if root target has no metadata")
+	var concludedLicensesPath string
+	flag.StringVar(&concludedLicensesPath, "concluded-licenses", "", "Path to the concluded licenses JSON overriding the declared license of packages")
 	flag.Parse()
 
 	if inputPath == "" || outputPath == "" {
@@ -37,6 +39,16 @@ func main() {
 
 	classifications, err := sbom.ComputeClassifications(graphConfig, allowMissingRootMetadata)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	concluded, err := sbom.LoadConcludedLicenses(concludedLicensesPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	if err := concluded.Apply(&classifications); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

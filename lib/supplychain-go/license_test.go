@@ -186,3 +186,23 @@ func TestLicenseGoldens(t *testing.T) {
 		})
 	}
 }
+
+func TestLicenseExpressionHasChoice(t *testing.T) {
+	cases := map[string]bool{
+		`{"kind":{"identifier":"MIT","name":"m"},"label":"//:l"}`: false,
+		`{"expression":{"operator":"AND","operands":[
+			{"kind":{"identifier":"MIT","name":"m"}},
+			{"kind":{"identifier":"Apache-2.0","name":"a"}}]},"label":"//:l"}`: false,
+		`{"expression":{"operator":"OR","operands":[
+			{"kind":{"identifier":"MIT","name":"m"}},
+			{"kind":{"identifier":"Apache-2.0","name":"a"}}]},"label":"//:l"}`: true,
+		`{"expression":{"operator":"AND","operands":[
+			{"kind":{"identifier":"GPL-3.0-only","name":"g"}},
+			{"operator":"OR","operands":[
+				{"kind":{"identifier":"MIT","name":"m"}},
+				{"kind":{"identifier":"Apache-2.0","name":"a"}}]}]},"label":"//:l"}`: true,
+	}
+	for input, expected := range cases {
+		assert.Equal(t, expected, parseLicense(t, input).Root().HasChoice(), input)
+	}
+}
