@@ -11,17 +11,20 @@ import (
 )
 
 // ConcludedLicenses holds the concluded licenses that override the declared
-// license of packages, keyed by PURL (type, namespace, name and version only).
+// license of packages, keyed by PURL (type, namespace, name and optional version only). A key
+// without version applies to every version without a more specific key.
 //
 // A nil *ConcludedLicenses is valid and overrides nothing.
 type ConcludedLicenses struct {
-	licenses               map[string]concludedLicense
+	licenses               map[string]*concludedLicense
 	used                   map[string]bool
 	requireResolvedChoices bool
 	requireMatched         bool
 }
 
 type concludedLicense struct {
+	key       string
+	purl      packageurl.PackageURL
 	path      string
 	attribute *supplychain.LicenseAttribute
 }
@@ -38,7 +41,7 @@ type concludedLicensesFile struct {
 // empty path yields no overrides.
 func LoadConcludedLicenses(path string) (*ConcludedLicenses, error) {
 	c := &ConcludedLicenses{
-		licenses: map[string]concludedLicense{},
+		licenses: map[string]*concludedLicense{},
 		used:     map[string]bool{},
 	}
 	if path == "" {
@@ -57,10 +60,11 @@ func LoadConcludedLicenses(path string) (*ConcludedLicenses, error) {
 	c.requireMatched = file.RequireMatched
 
 	for rawPURL, attributePath := range file.Licenses {
-		key, err := ParseConcludedKey(rawPURL)
+		purl, err := parseConcludedPURL(rawPURL)
 		if err != nil {
 			return nil, err
 		}
+		key := purl.ToString()
 		if _, ok := c.licenses[key]; ok {
 			return nil, fmt.Errorf("concluded license for '%s' is declared more than once", key)
 		}
@@ -68,7 +72,7 @@ func LoadConcludedLicenses(path string) (*ConcludedLicenses, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading concluded license of '%s': %w", rawPURL, err)
 		}
-		c.licenses[key] = concludedLicense{path: attributePath, attribute: attribute}
+		c.licenses[key] = &concludedLicense{key: key, purl: purl, path: attributePath, attribute: attribute}
 	}
 	return c, nil
 }
@@ -84,25 +88,88 @@ func ReadLicenseAttribute(path string) (*supplychain.LicenseAttribute, error) {
 }
 
 // ParseConcludedKey validates a PURL used to key a concluded license and
-// returns its canonical form. Only the type, namespace, name and version
-// identify a package, so qualifiers and subpaths are rejected.
+// returns its canonical form. The version and the qualifiers are optional and
+// match any value when left out. Subpaths are rejected.
 func ParseConcludedKey(raw string) (string, error) {
-	purl, err := packageurl.FromString(raw)
+	purl, err := parseConcludedPURL(raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid PURL '%s' for a concluded license: %w", raw, err)
+		return "", err
 	}
-	if purl.Version == "" {
-		return "", fmt.Errorf("PURL '%s' for a concluded license must have a version", raw)
-	}
-	if len(purl.Qualifiers) > 0 || purl.Subpath != "" {
-		return "", fmt.Errorf("PURL '%s' for a concluded license must only have a type, namespace, name and version", raw)
-	}
-	return PurlKey(purl), nil
+	return purl.ToString(), nil
 }
 
-// PurlKey is the canonical form of the PURL properties that identify a package.
-func PurlKey(purl packageurl.PackageURL) string {
-	return packageurl.NewPackageURL(purl.Type, purl.Namespace, purl.Name, purl.Version, nil, "").ToString()
+func parseConcludedPURL(raw string) (packageurl.PackageURL, error) {
+	purl, err := packageurl.FromString(raw)
+	if err != nil {
+		return packageurl.PackageURL{}, fmt.Errorf("invalid PURL '%s' for a concluded license: %w", raw, err)
+	}
+	if purl.Subpath != "" {
+		return packageurl.PackageURL{}, fmt.Errorf("PURL '%s' for a concluded license must not have a subpath", raw)
+	}
+	if err := purl.Qualifiers.Normalize(); err != nil {
+		return packageurl.PackageURL{}, fmt.Errorf("invalid PURL '%s' for a concluded license: %w", raw, err)
+	}
+	return purl, nil
+}
+
+// matches reports whether the concluded license applies to the package: type,
+// namespace and name are equal, and the version and qualifiers of the key, if
+// any, are those of the package.
+func (l *concludedLicense) matches(pkg packageurl.PackageURL) bool {
+	if l.purl.Type != pkg.Type || l.purl.Namespace != pkg.Namespace || l.purl.Name != pkg.Name {
+		return false
+	}
+	if l.purl.Version != "" && l.purl.Version != pkg.Version {
+		return false
+	}
+	have := pkg.Qualifiers.Map()
+	for _, q := range l.purl.Qualifiers {
+		if v, ok := have[q.Key]; !ok || v != q.Value {
+			return false
+		}
+	}
+	return true
+}
+
+// specificity orders matching keys: a version outweighs any number of qualifiers.
+func (l *concludedLicense) specificity() (int, int) {
+	version := 0
+	if l.purl.Version != "" {
+		version = 1
+	}
+	return version, len(l.purl.Qualifiers)
+}
+
+// find returns the most specific concluded license matching the package. Keys
+// that match with the same specificity are ambiguous.
+func (c *ConcludedLicenses) find(pkg packageurl.PackageURL) (*concludedLicense, error) {
+	var best *concludedLicense
+	var tied []string
+	for _, l := range c.licenses {
+		if !l.matches(pkg) {
+			continue
+		}
+		if best == nil {
+			best = l
+			continue
+		}
+		bv, bq := best.specificity()
+		lv, lq := l.specificity()
+		switch {
+		case lv > bv || (lv == bv && lq > bq):
+			best, tied = l, nil
+		case lv == bv && lq == bq:
+			if tied == nil {
+				tied = []string{best.key}
+			}
+			tied = append(tied, l.key)
+		}
+	}
+	if tied != nil {
+		sort.Strings(tied)
+		return nil, fmt.Errorf("concluded licenses %v are equally specific for '%s'", tied, pkg.ToString())
+	}
+	return best, nil
 }
 
 // Apply sets `ConcludedLicenseFile` on the nodes of the classifications whose
@@ -143,9 +210,12 @@ func (c *ConcludedLicenses) apply(node *NodeConfig) error {
 		return fmt.Errorf("reading license of %s: %w", node.Label, err)
 	}
 
-	key := PurlKey(metadata.GetPURL())
-	if override, ok := c.licenses[key]; ok {
-		c.used[key] = true
+	override, err := c.find(metadata.GetPURL())
+	if err != nil {
+		return fmt.Errorf("%s: %w", node.Label, err)
+	}
+	if override != nil {
+		c.used[override.key] = true
 		node.ConcludedLicenseFile = override.path
 		effective = override.attribute
 	}
