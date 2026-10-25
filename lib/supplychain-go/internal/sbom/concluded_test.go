@@ -160,10 +160,8 @@ func TestApplyRequireResolvedChoices(t *testing.T) {
 
 func TestConcludedLicensesInvalidKeys(t *testing.T) {
 	cases := map[string]string{
-		"pkg:generic/lib":            "must have a version",
-		"pkg:generic/lib@1?arch=x86": "only have a type, namespace, name and version",
-		"pkg:generic/lib@1#sub":      "only have a type, namespace, name and version",
-		"not-a-purl":                 "invalid PURL",
+		"pkg:generic/lib@1#sub": "must not have a subpath",
+		"not-a-purl":            "invalid PURL",
 	}
 	for key, message := range cases {
 		_, err := sbom.LoadConcludedLicenses(manifest(t, map[string]string{key: mitLicense}, false))
@@ -268,4 +266,149 @@ func TestApplyToPackagesDifferingByQualifiers(t *testing.T) {
 		&sbom.Classifications{Dependencies: sbom.DependencyNodes{Direct: []sbom.NodeConfig{amd64, otherVersion}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "//libfoo_other")
+}
+
+func TestApplyVersionlessKeyMatchesAnyVersion(t *testing.T) {
+	dir := t.TempDir()
+	v1 := pkg(t, dir, "lib", "1.0", mitLicense)
+	v2 := pkg(t, dir, "lib", "2.0", mitLicense)
+
+	c := load(t, map[string]string{"pkg:generic/lib": mitLicense, "pkg:generic/lib@2.0": dualLicense}, false)
+	classifications := sbom.Classifications{Dependencies: sbom.DependencyNodes{Direct: []sbom.NodeConfig{v1, v2}}}
+	require.NoError(t, c.Apply(&classifications))
+
+	assert.NotEmpty(t, classifications.Dependencies.Direct[0].ConcludedLicenseFile)
+	attribute, err := sbom.ReadLicenseAttribute(classifications.Dependencies.Direct[1].ConcludedLicenseFile)
+	require.NoError(t, err)
+	assert.Equal(t, "MIT OR Apache-2.0", attribute.Root().String(), "the exact version wins")
+}
+
+// Every PURL component, specified or not, on the key and on the package.
+func TestApplyMatchingPURLComponents(t *testing.T) {
+	cases := []struct {
+		name    string
+		key     string
+		pkgPURL string
+		match   bool
+	}{
+		{"all required only", "pkg:npm/lib", "pkg:npm/lib", true},
+		{"type differs", "pkg:npm/lib", "pkg:gem/lib", false},
+		{"name differs", "pkg:npm/lib", "pkg:npm/other", false},
+
+		{"namespace on both", "pkg:maven/org.acme/lib@1", "pkg:maven/org.acme/lib@1", true},
+		{"namespace differs", "pkg:maven/org.acme/lib@1", "pkg:maven/org.other/lib@1", false},
+		{"namespace only on key", "pkg:maven/org.acme/lib@1", "pkg:maven/lib@1", false},
+		{"namespace only on package", "pkg:maven/lib@1", "pkg:maven/org.acme/lib@1", false},
+		{"no namespace on both", "pkg:maven/lib@1", "pkg:maven/lib@1", true},
+
+		{"version on both", "pkg:npm/lib@1.0", "pkg:npm/lib@1.0", true},
+		{"version differs", "pkg:npm/lib@1.0", "pkg:npm/lib@2.0", false},
+		{"version only on key", "pkg:npm/lib@1.0", "pkg:npm/lib", false},
+		{"version only on package", "pkg:npm/lib", "pkg:npm/lib@1.0", true},
+		{"version on both unset", "pkg:npm/lib", "pkg:npm/lib", true},
+		{"versionless key with namespace", "pkg:maven/org.acme/lib", "pkg:maven/org.acme/lib@3", true},
+		{"versionless key other namespace", "pkg:maven/org.acme/lib", "pkg:maven/org.other/lib@3", false},
+
+		{"qualifier on key and package", "pkg:deb/debian/lib@1?arch=amd64", "pkg:deb/debian/lib@1?arch=amd64", true},
+		{"qualifier value differs", "pkg:deb/debian/lib@1?arch=amd64", "pkg:deb/debian/lib@1?arch=arm64", false},
+		{"qualifier only on key", "pkg:deb/debian/lib@1?arch=amd64", "pkg:deb/debian/lib@1", false},
+		{"key qualifiers are a subset", "pkg:deb/debian/lib@1?arch=amd64", "pkg:deb/debian/lib@1?arch=amd64&distro=bookworm", true},
+		{"missing second key qualifier", "pkg:deb/debian/lib@1?arch=amd64&distro=bookworm", "pkg:deb/debian/lib@1?arch=amd64", false},
+		{"qualifier on versionless key", "pkg:deb/debian/lib?arch=amd64", "pkg:deb/debian/lib@9?arch=amd64", true},
+		{"qualifier on versionless key differs", "pkg:deb/debian/lib?arch=amd64", "pkg:deb/debian/lib@9?arch=arm64", false},
+		{"qualifiers on package", "pkg:deb/debian/lib@1", "pkg:deb/debian/lib@1?arch=amd64", true},
+		{"qualifiers on package, versionless key", "pkg:deb/debian/lib", "pkg:deb/debian/lib@1?arch=amd64", true},
+		{"subpath on package", "pkg:github/org/lib@1", "pkg:github/org/lib@1#src/main", true},
+		{"qualifiers and subpath on package", "pkg:npm/lib@1", "pkg:npm/lib@1?a=b#c", true},
+		{"qualifiers, other version", "pkg:npm/lib@1", "pkg:npm/lib@2?a=b#c", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			metadata := write(t, dir, "metadata.json",
+				`{"label":"@@//lib:package_metadata","purl":"`+tc.pkgPURL+`","attributes":{}}`)
+			node := sbom.NodeConfig{Label: "//lib", MetadataFile: metadata}
+
+			c := load(t, map[string]string{tc.key: mitLicense}, false)
+			classifications := sbom.Classifications{Dependencies: sbom.DependencyNodes{Direct: []sbom.NodeConfig{node}}}
+			require.NoError(t, c.Apply(&classifications))
+			if tc.match {
+				assert.NotEmpty(t, classifications.Dependencies.Direct[0].ConcludedLicenseFile)
+			} else {
+				assert.Empty(t, classifications.Dependencies.Direct[0].ConcludedLicenseFile)
+			}
+		})
+	}
+}
+
+// The key may leave the version and qualifiers out, but never carries a subpath.
+func TestConcludedKeyComponents(t *testing.T) {
+	valid := []string{"pkg:npm/lib", "pkg:npm/lib@1", "pkg:maven/org.acme/lib", "pkg:maven/org.acme/lib@1",
+		"pkg:npm/lib?a=b", "pkg:npm/lib@1?a=b&c=d"}
+	for _, key := range valid {
+		_, err := sbom.ParseConcludedKey(key)
+		assert.NoError(t, err, key)
+	}
+	invalid := []string{
+		"pkg:npm/lib#sub", "pkg:npm/lib@1?a=b#sub", // subpath
+		"npm/lib",  // scheme missing
+		"pkg:lib",  // type missing
+		"pkg:npm/", // name missing
+	}
+	for _, key := range invalid {
+		_, err := sbom.ParseConcludedKey(key)
+		assert.Error(t, err, key)
+	}
+}
+
+func TestApplyMostSpecificKeyWins(t *testing.T) {
+	dir := t.TempDir()
+	node := func(purl string) sbom.NodeConfig {
+		metadata := write(t, dir, "m.json", `{"label":"@@//lib:package_metadata","purl":"`+purl+`","attributes":{}}`)
+		return sbom.NodeConfig{Label: "//lib", MetadataFile: metadata}
+	}
+	concluded := func(keys map[string]string, purl string) (string, error) {
+		c := load(t, keys, false)
+		classifications := sbom.Classifications{Dependencies: sbom.DependencyNodes{Direct: []sbom.NodeConfig{node(purl)}}}
+		err := c.Apply(&classifications)
+		if err != nil {
+			return "", err
+		}
+		file := classifications.Dependencies.Direct[0].ConcludedLicenseFile
+		if file == "" {
+			return "", nil
+		}
+		attribute, err := sbom.ReadLicenseAttribute(file)
+		require.NoError(t, err)
+		return attribute.Root().String(), nil
+	}
+	const mit, dual = "MIT", "MIT OR Apache-2.0"
+	pkg := "pkg:deb/debian/lib@1?arch=amd64&distro=bookworm"
+
+	got, err := concluded(map[string]string{
+		"pkg:deb/debian/lib": mitLicense, "pkg:deb/debian/lib?arch=amd64": dualLicense}, pkg)
+	require.NoError(t, err)
+	assert.Equal(t, dual, got, "qualifiers are more specific than none")
+
+	got, err = concluded(map[string]string{
+		"pkg:deb/debian/lib@1": mitLicense, "pkg:deb/debian/lib?arch=amd64&distro=bookworm": dualLicense}, pkg)
+	require.NoError(t, err)
+	assert.Equal(t, mit, got, "a version outweighs qualifiers")
+
+	got, err = concluded(map[string]string{
+		"pkg:deb/debian/lib@1": mitLicense, "pkg:deb/debian/lib@1?arch=amd64": dualLicense}, pkg)
+	require.NoError(t, err)
+	assert.Equal(t, dual, got, "same version, more qualifiers")
+
+	_, err = concluded(map[string]string{
+		"pkg:deb/debian/lib?arch=amd64": mitLicense, "pkg:deb/debian/lib?distro=bookworm": dualLicense}, pkg)
+	require.Error(t, err, "equally specific keys are ambiguous")
+	assert.Contains(t, err.Error(), "equally specific")
+}
+
+func TestConcludedLicensesDuplicateKeysWithQualifiers(t *testing.T) {
+	_, err := sbom.LoadConcludedLicenses(manifest(t, map[string]string{
+		"pkg:generic/lib@1?a=b&c=d": mitLicense, "pkg:generic/lib@1?c=d&a=b": mitLicense}, false))
+	require.Error(t, err, "qualifier order does not make keys distinct")
+	assert.Contains(t, err.Error(), "more than once")
 }
