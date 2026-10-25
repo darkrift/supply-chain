@@ -5,6 +5,7 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("//:license_expression_analysis_test.bzl", "license_expression_failure_test", "license_expression_custom_kinds_test", "license_expression_graph_test", "license_expression_or_later_test")
 load("//:license_expression_test.bzl", "license_expression_test")
 load("//:purl_test.bzl", "purl_bazel_registry_test")
+load("//:sbom_concluded_licenses_test.bzl", "sbom_concluded_licenses_failure_test")
 
 package_metadata(
     name = "package_metadata",
@@ -115,4 +116,28 @@ license_expression_failure_test(
     name = "license_expression_or_later_of_or_later_test",
     expression = "GPL-3.0-or-later+",
     message = "'GPL-3.0-or-later+' is not a valid license",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_not_a_purl_test",
+    message = "'acme/lib@1.0.0' in `concluded_licenses` is not a valid key",
+    purl = "acme/lib@1.0.0",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_no_version_test",
+    message = "'pkg:maven/org.acme/lib' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_qualifiers_test",
+    message = "'pkg:maven/org.acme/lib@1.0.0?classifier=sources' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib@1.0.0?classifier=sources",
+)
+
+sbom_concluded_licenses_failure_test(
+    name = "sbom_concluded_licenses_subpath_test",
+    message = "'pkg:maven/org.acme/lib@1.0.0#sub' in `concluded_licenses` is not a valid key",
+    purl = "pkg:maven/org.acme/lib@1.0.0#sub",
 )

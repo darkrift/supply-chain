@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -64,6 +65,9 @@ func TestGenerateDocumentLicenses(t *testing.T) {
 	declared := map[string]string{}
 	for _, p := range doc.Packages {
 		declared[p.PackageName] = p.PackageLicenseDeclared
+
+		// Without an override, the concluded license is the declared one.
+		assert.Equal(t, p.PackageLicenseDeclared, p.PackageLicenseConcluded, p.PackageName)
 	}
 	assert.Equal(t, map[string]string{
 		"root":      "NOASSERTION",
@@ -79,4 +83,101 @@ func TestGenerateDocumentLicenses(t *testing.T) {
 	assert.Equal(t, "LicenseRef-acme", doc.OtherLicenses[0].LicenseIdentifier)
 	assert.Equal(t, "ACME License", doc.OtherLicenses[0].LicenseName)
 	assert.Equal(t, "ACME license text", doc.OtherLicenses[0].ExtractedText)
+}
+
+// writeConcluded writes a concluded licenses manifest and loads it.
+func writeConcluded(t *testing.T, dir string, requireResolved bool, licenses map[string]string) *sbom.ConcludedLicenses {
+	t.Helper()
+	entries := map[string]string{}
+	for purl, licenseJSON := range licenses {
+		path := filepath.Join(dir, fmt.Sprintf("concluded-%d.json", len(entries)))
+		writeFile(t, path, licenseJSON)
+		entries[purl] = path
+	}
+	manifest, err := json.Marshal(map[string]any{
+		"licenses":                 entries,
+		"require_resolved_choices": requireResolved,
+	})
+	require.NoError(t, err)
+	manifestPath := filepath.Join(dir, "concluded.json")
+	writeFile(t, manifestPath, string(manifest))
+
+	concluded, err := sbom.LoadConcludedLicenses(manifestPath)
+	require.NoError(t, err)
+	return concluded
+}
+
+func applied(t *testing.T, concluded *sbom.ConcludedLicenses, classifications sbom.Classifications) sbom.Classifications {
+	t.Helper()
+	require.NoError(t, concluded.Apply(&classifications))
+	return classifications
+}
+
+func classify(nodes ...sbom.NodeConfig) sbom.Classifications {
+	return sbom.Classifications{Dependencies: sbom.DependencyNodes{Direct: nodes}}
+}
+
+func TestGenerateDocumentConcludedLicenses(t *testing.T) {
+	dir := t.TempDir()
+	dual := writePackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[
+		{"kind":{"identifier":"MIT","name":"MIT License"}},
+		{"kind":{"identifier":"Apache-2.0","name":"Apache"}}]},"label":"//dual:license"}`)
+	other := writePackage(t, dir, "other", `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//other:license"}`)
+
+	concluded := writeConcluded(t, dir, false, map[string]string{
+		"pkg:generic/dual@1.0.0": `{"kind":{"identifier":"LicenseRef-legal","name":"Legal"},"label":"//legal"}`,
+	})
+
+	doc, err := GenerateDocument(sbom.GraphConfig{}, applied(t, concluded, classify(dual, other)))
+	require.NoError(t, err)
+
+	type licenses struct{ Declared, Concluded string }
+	got := map[string]licenses{}
+	for _, p := range doc.Packages {
+		got[p.PackageName] = licenses{p.PackageLicenseDeclared, p.PackageLicenseConcluded}
+	}
+	assert.Equal(t, map[string]licenses{
+		// The declared license is kept, the conclusion overrides it.
+		"dual":  {"MIT OR Apache-2.0", "LicenseRef-legal"},
+		"other": {"MIT", "MIT"},
+	}, got)
+
+	// Custom licenses used by a conclusion are defined in the document.
+	require.Len(t, doc.OtherLicenses, 1)
+	assert.Equal(t, "LicenseRef-legal", doc.OtherLicenses[0].LicenseIdentifier)
+}
+
+func TestGenerateDocumentConcludedLicenseOfRoot(t *testing.T) {
+	dir := t.TempDir()
+	root := writePackage(t, dir, "root", `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//root:license"}`)
+	concluded := writeConcluded(t, dir, false, map[string]string{
+		"pkg:generic/root@1.0.0": `{"kind":{"identifier":"Apache-2.0","name":"Apache"},"label":"//legal"}`,
+	})
+
+	doc, err := GenerateDocument(sbom.GraphConfig{}, applied(t, concluded, sbom.Classifications{RootComponent: &root}))
+	require.NoError(t, err)
+	require.Len(t, doc.Packages, 1)
+	assert.Equal(t, "MIT", doc.Packages[0].PackageLicenseDeclared)
+	assert.Equal(t, "Apache-2.0", doc.Packages[0].PackageLicenseConcluded)
+}
+
+// A concluded license never replaces the declared one, including the custom
+// licenses it references.
+func TestGenerateDocumentConcludedLicenseKeepsDeclared(t *testing.T) {
+	dir := t.TempDir()
+	custom := writePackage(t, dir, "custom", `{"expression":{"operator":"OR","operands":[
+		{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"}},
+		{"kind":{"identifier":"MIT","name":"MIT License"}}]},"label":"//custom:license"}`)
+	concluded := writeConcluded(t, dir, false, map[string]string{
+		"pkg:generic/custom@1.0.0": `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//legal"}`,
+	})
+
+	doc, err := GenerateDocument(sbom.GraphConfig{}, applied(t, concluded, classify(custom)))
+	require.NoError(t, err)
+	require.Len(t, doc.Packages, 1)
+	assert.Equal(t, "LicenseRef-acme OR MIT", doc.Packages[0].PackageLicenseDeclared)
+	assert.Equal(t, "MIT", doc.Packages[0].PackageLicenseConcluded)
+
+	require.Len(t, doc.OtherLicenses, 1)
+	assert.Equal(t, "LicenseRef-acme", doc.OtherLicenses[0].LicenseIdentifier)
 }

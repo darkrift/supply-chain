@@ -90,8 +90,35 @@ cc_library(
     deps = ["@legacy_gpl"],
 )
 
+# Concluded licenses, e.g. decided by legal review. They override the license
+# declared by the dependencies in the reports, which keep the declared license
+# next to them. A dependency is identified by the type, namespace, name and
+# version of its PURL.
+license(
+    name = "dual_licensed_conclusion",
+    kind = "@package_metadata//licenses/spdx:MIT",
+)
+
+license(
+    name = "acme_plugin_conclusion",
+    expression = "Apache-2.0 WITH LLVM-exception",
+)
+
+license(
+    name = "legacy_gpl_conclusion",
+    expression = "GPL-2.0-only WITH Classpath-exception-2.0",
+)
+
 sbom(
     name = "app_sbom",
+    concluded_licenses = {
+        # Takes the MIT side of `Apache-2.0 OR MIT`.
+        "pkg:bazel/dual_licensed@1.0.219": ":dual_licensed_conclusion",
+        # Declines the commercial side of the choice.
+        "pkg:bazel/acme_plugin@0.4.1": ":acme_plugin_conclusion",
+        # Replaces the deprecated identifiers by their current equivalent.
+        "pkg:bazel/legacy_gpl@0.9.0": ":legacy_gpl_conclusion",
+    },
     target = ":app",
 )
 

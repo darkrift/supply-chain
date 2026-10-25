@@ -4,17 +4,27 @@ go_library(
     name = "sbom",
     srcs = [
         "classify.go",
+        "concluded.go",
         "genconfig.go",
     ],
     importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom",
     visibility = ["//:__subpackages__"],
+    deps = [
+        "//:supplychain-go",
+        "@com_github_package_url_packageurl_go//:packageurl-go",
+    ],
 )
 
 go_test(
     name = "classify_test",
-    srcs = ["classify_test.go"],
+    srcs = [
+        "classify_test.go",
+        "concluded_test.go",
+    ],
     deps = [
         ":sbom",
+        "//:supplychain-go",
+        "@com_github_package_url_packageurl_go//:packageurl-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
