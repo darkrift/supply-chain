@@ -50,7 +50,7 @@ license_kind(
 license_kind(
     name = "acme_corp_paid",
     full_name = "The ACME per seat license.",
-    identifier = "ACME",
+    identifier = "LicenseRef-acme",
 )
 
 # A custom (non-SPDX) license. Custom license identifiers must start with
