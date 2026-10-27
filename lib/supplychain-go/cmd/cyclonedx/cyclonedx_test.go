@@ -32,9 +32,9 @@ func TestGenerateBOMLicenses(t *testing.T) {
 	dir := t.TempDir()
 
 	none := writePackage(t, dir, "none", "")
-	single := writePackage(t, dir, "single", `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//single:license"}`)
-	deprecated := writePackage(t, dir, "deprecated", `{"kind":{"identifier":"GPL-2.0+","name":"GPL 2.0 or later"},"label":"//deprecated:license"}`)
-	custom := writePackage(t, dir, "custom", `{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"},"label":"//custom:license"}`)
+	single := writePackage(t, dir, "single", `{"expression":{"kind":{"identifier":"MIT","name":"MIT License"}},"label":"//single:license"}`)
+	deprecated := writePackage(t, dir, "deprecated", `{"expression":{"kind":{"identifier":"GPL-2.0+","name":"GPL 2.0 or later"}},"label":"//deprecated:license"}`)
+	custom := writePackage(t, dir, "custom", `{"expression":{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"}},"label":"//custom:license"}`)
 	dual := writePackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[
 		{"kind":{"identifier":"Apache-2.0","name":"Apache"}},
 		{"kind":{"identifier":"MIT","name":"MIT License"}}]},"label":"//dual:license"}`)

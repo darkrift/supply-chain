@@ -4,6 +4,7 @@ load("@package_metadata//purl:purl.bzl", "purl")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("//:license_expression_analysis_test.bzl", "license_expression_failure_test", "license_expression_custom_kinds_test", "license_expression_graph_test", "license_expression_or_later_test")
 load("//:license_expression_test.bzl", "license_expression_test")
+load("//:license_json_test.bzl", "license_json_test")
 load("//:purl_test.bzl", "purl_bazel_registry_test")
 
 package_metadata(
@@ -115,4 +116,21 @@ license_expression_failure_test(
     name = "license_expression_or_later_of_or_later_test",
     expression = "GPL-3.0-or-later+",
     message = "'GPL-3.0-or-later+' is not a valid license",
+)
+
+# All three operators, nested: AND inside OR, OR inside AND, WITH inside OR.
+license(
+    name = "all_operators_license",
+    expression = "MIT OR (Apache-2.0 AND (LicenseRef-acme OR GPL-2.0-only WITH Classpath-exception-2.0)) OR (BSD-3-Clause AND LicenseRef-acme WITH AdditionRef-acme-linking)",
+    kinds = [
+        ":acme_kind",
+        ":custom_exception",
+    ],
+    tags = ["manual"],
+)
+
+license_json_test(
+    name = "license_json_all_operators_test",
+    expected = "testdata/all_operators.license.json",
+    license = ":all_operators_license",
 )

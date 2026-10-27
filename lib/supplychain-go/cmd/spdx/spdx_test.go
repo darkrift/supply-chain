@@ -41,9 +41,9 @@ func TestGenerateDocumentLicenses(t *testing.T) {
 	writeFile(t, textPath, "ACME license text")
 
 	root := writePackage(t, dir, "root", "")
-	single := writePackage(t, dir, "single", `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//single:license"}`)
+	single := writePackage(t, dir, "single", `{"expression":{"kind":{"identifier":"MIT","name":"MIT License"}},"label":"//single:license"}`)
 	custom := writePackage(t, dir, "custom", fmt.Sprintf(
-		`{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"},"label":"//custom:license","text":%q}`, textPath))
+		`{"expression":{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"}},"label":"//custom:license","text":%q}`, textPath))
 	dual := writePackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[
 		{"kind":{"identifier":"MIT","name":"MIT License"}},
 		{"kind":{"identifier":"LicenseRef-acme","name":"ACME License"}}]},"label":"//dual:license"}`)

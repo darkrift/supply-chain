@@ -79,10 +79,8 @@ def _license_impl(ctx):
     }
     if ctx.attr.kind:
         kind = ctx.attr.kind[LicenseKindInfo]
-        attribute["kind"] = {
-            "identifier": kind.identifier,
-            "name": kind.name,
-        }
+        attribute["expression"] = {"kind": {"identifier": kind.identifier, "name": kind.name}}
+        expression = LicenseExpressionInfo(kind = kind)
     else:
         tree = parse_license_expression(ctx.attr.expression)
         kinds = {}
@@ -93,11 +91,8 @@ def _license_impl(ctx):
             if kind_id not in kinds:
                 fail("no license kind for '{}' in expression '{}'; pass it in `kinds`".format(kind_id, ctx.attr.expression))
         expression, attribute["expression"] = _build_graph(tree, kinds)
-    providers = []
+    providers = [expression]
     files = []
-
-    if ctx.attr.expression:
-        providers.append(expression)
 
     if ctx.attr.text:
         attribute["text"] = ctx.file.text.path
@@ -193,7 +188,8 @@ def license(
     `MIT OR Apache-2.0`) and SPDX license exceptions can be declared with
     `expression` instead of `kind`. The parsed expression is a graph of
     `LicenseKindInfo`s, also exposed through the `LicenseExpressionInfo`
-    provider of the `license` target.
+    provider of the `license` target. For a single `kind`, that provider is a
+    leaf node holding the `LicenseKindInfo`.
 
     Format: the `PackageAttributeInfo` of this rule has `kind`
     `build.bazel.attribute.license`, and its `attributes` file holds a JSON
@@ -202,9 +198,11 @@ def license(
 
     ```json
     {
-        "kind": {
-            "identifier": "GPL-3.0-or-later",
-            "name": "GNU General Public License v3.0 or later"
+        "expression": {
+            "kind": {
+                "identifier": "GPL-3.0-or-later",
+                "name": "GNU General Public License v3.0 or later"
+            }
         },
         "label": "@@//:license",
         "text": "COPYING"
@@ -213,9 +211,7 @@ def license(
 
     | Field | Description |
     | :---- | :---------- |
-    | `expression` | A graph of the parsed SPDX license expression, present instead of `kind` if `expression` was declared. A node is either a leaf `{"kind": {"identifier", "name"}}`  or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
-    | `kind.identifier` | The `identifier` of the `kind` of this license. |
-    | `kind.name` | The `full_name` of the `kind` of this license. |
+        | `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name"}}` (the `identifier` and `full_name` of a `license_kind`) or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
     | `label` | The label of this `license` target. |
     | `text` | The path of the license `text` file, relative to the execution root. Absent if no `text` was declared. |
 

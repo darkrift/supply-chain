@@ -19,8 +19,8 @@ var LicenseAttributeDescriptor = PackageAttributeDescriptor[LicenseAttribute]{
 		if err := json.NewDecoder(r).Decode(&a); err != nil {
 			return nil, err
 		}
-		if (a.Kind == nil) == (a.Expression == nil) {
-			return nil, fmt.Errorf("license attribute must have exactly one of kind and expression")
+		if a.Expression == nil {
+			return nil, fmt.Errorf("license attribute must have an expression")
 		}
 		return &a, nil
 	},
@@ -68,22 +68,17 @@ type LicenseExpression struct {
 	Exception *LicenseKind        `json:"exception,omitempty"`
 }
 
-// LicenseAttribute is the license attribute of a package: either a single
-// Kind, or an Expression.
+// LicenseAttribute is the license attribute of a package. Its Expression is
+// the root of the license AST; a single license is a leaf node.
 type LicenseAttribute struct {
-	Kind       *LicenseKind       `json:"kind,omitempty"`
-	Expression *LicenseExpression `json:"expression,omitempty"`
+	Expression *LicenseExpression `json:"expression"`
 	Label      string             `json:"label"`
 	Text       string             `json:"text,omitempty"`
 }
 
-// Root returns the license of the attribute as an expression, regardless of
-// whether a single kind or an expression was declared.
+// Root returns the root node of the license expression.
 func (a *LicenseAttribute) Root() LicenseExpression {
-	if a.Expression != nil {
-		return *a.Expression
-	}
-	return LicenseExpression{Kind: a.Kind}
+	return *a.Expression
 }
 
 // String renders the expression as an SPDX license expression.

@@ -23,7 +23,7 @@ func TestLicenseExpressionString(t *testing.T) {
 	}{
 		{
 			Name:     "single kind",
-			Input:    `{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//:l"}`,
+			Input:    `{"expression":{"kind":{"identifier":"MIT","name":"MIT License"}},"label":"//:l"}`,
 			Expected: "MIT",
 		},
 		{
@@ -65,12 +65,13 @@ func TestLicenseExpressionKinds(t *testing.T) {
 	assert.True(t, kinds[1].IsCustom())
 }
 
-func TestLicenseAttributeRequiresExactlyOne(t *testing.T) {
-	for _, s := range []string{
-		`{"label":"//:l"}`,
-		`{"kind":{"identifier":"MIT","name":"m"},"expression":{"kind":{"identifier":"MIT","name":"m"}},"label":"//:l"}`,
-	} {
-		_, err := LicenseAttributeDescriptor.Parser(strings.NewReader(s))
-		assert.Error(t, err)
-	}
+func TestLicenseAttributeRequiresExpression(t *testing.T) {
+	_, err := LicenseAttributeDescriptor.Parser(strings.NewReader(`{"label":"//:l"}`))
+	assert.Error(t, err)
+}
+
+func TestSingleLicenseIsLeafNode(t *testing.T) {
+	root := parseLicense(t, `{"expression":{"kind":{"identifier":"MIT","name":"m"}},"label":"//:l"}`).Root()
+	assert.True(t, root.IsSingle())
+	assert.Empty(t, root.Operands)
 }

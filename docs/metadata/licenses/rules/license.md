@@ -46,7 +46,8 @@ different license. Packages available under a choice of licenses (e.g.,
 `MIT OR Apache-2.0`) and SPDX license exceptions can be declared with
 `expression` instead of `kind`. The parsed expression is a graph of
 `LicenseKindInfo`s, also exposed through the `LicenseExpressionInfo`
-provider of the `license` target.
+provider of the `license` target. For a single `kind`, that provider is a
+leaf node holding the `LicenseKindInfo`.
 
 Format: the `PackageAttributeInfo` of this rule has `kind`
 `build.bazel.attribute.license`, and its `attributes` file holds a JSON
@@ -55,9 +56,11 @@ example below is indented for readability):
 
 ```json
 {
-    "kind": {
-        "identifier": "GPL-3.0-or-later",
-        "name": "GNU General Public License v3.0 or later"
+    "expression": {
+        "kind": {
+            "identifier": "GPL-3.0-or-later",
+            "name": "GNU General Public License v3.0 or later"
+        }
     },
     "label": "@@//:license",
     "text": "COPYING"
@@ -66,9 +69,7 @@ example below is indented for readability):
 
 | Field | Description |
 | :---- | :---------- |
-| `expression` | A graph of the parsed SPDX license expression, present instead of `kind` if `expression` was declared. A node is either a leaf `{"kind": {"identifier", "name"}}`  or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
-| `kind.identifier` | The `identifier` of the `kind` of this license. |
-| `kind.name` | The `full_name` of the `kind` of this license. |
+| `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name"}}` (the `identifier` and `full_name` of a `license_kind`) or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
 | `label` | The label of this `license` target. |
 | `text` | The path of the license `text` file, relative to the execution root. Absent if no `text` was declared. |
 
