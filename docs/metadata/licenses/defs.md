@@ -117,7 +117,7 @@ example below is indented for readability):
 
 | Field | Description |
 | :---- | :---------- |
-| `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name"}}` (the `identifier` and `full_name` of a `license_kind`) or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
+    | `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name"}}` (the `identifier` and `full_name` of a `license_kind`) or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
 | `label` | The label of this `license` target. |
 | `text` | The path of the license `text` file, relative to the execution root. Absent if no `text` was declared. |
 
