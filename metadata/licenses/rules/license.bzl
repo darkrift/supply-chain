@@ -79,6 +79,8 @@ def _license_impl(ctx):
     }
     if ctx.attr.kind:
         kind = ctx.attr.kind[LicenseKindInfo]
+        if kind.exception:
+            fail("'{}' is a license exception and can only follow 'WITH'".format(kind.identifier))
         attribute["expression"] = {"kind": {"identifier": kind.identifier, "name": kind.name}}
         expression = LicenseExpressionInfo(kind = kind)
     else:
