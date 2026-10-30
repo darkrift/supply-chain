@@ -5,7 +5,7 @@ visibility("public")
 LicenseExpressionInfo, _create = provider(
     doc = """
 A node in the graph of a parsed
-[SPDX license expression](https://spdx.github.io/spdx-spec/v2.3.1/SPDX-license-expressions/).
+[SPDX license expression](https://spdx.github.io/spdx-spec/v3.0.1/annexes/spdx-license-expressions/).
 
 Leaf nodes reference a `LicenseKindInfo`; inner nodes combine other nodes with
 `AND`, `OR` or `WITH`.

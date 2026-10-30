@@ -1,7 +1,37 @@
 """Parser for SPDX license expressions.
 
 Implements the grammar of
-https://spdx.github.io/spdx-spec/v2.3.1/SPDX-license-expressions/
+https://spdx.github.io/spdx-spec/v3.0.1/annexes/spdx-license-expressions/
+(SPDX 3.0.1, Annex).
+
+```
+idstring = 1*(ALPHA / DIGIT / "-" / "." )
+license-id = <short form license identifier from SPDX License List>
+license-exception-id = <short form license exception identifier from SPDX License List>
+license-ref = [%s"DocumentRef-"(idstring)":"]%s"LicenseRef-"(idstring)
+addition-ref = [%s"DocumentRef-"(idstring)":"]%s"AdditionRef-"(idstring)
+simple-expression = license-id / license-id"+" / license-ref
+addition-expression = license-exception-id / addition-ref
+compound-expression = (simple-expression /
+  simple-expression ( %s"WITH" / %s"with" ) addition-expression /
+  compound-expression ( %s"AND" / %s"and" ) compound-expression /
+  compound-expression ( %s"OR" / %s"or" ) compound-expression /
+  "(" compound-expression ")" )
+license-expression = (simple-expression / compound-expression)
+```
+
+As in SPDX, `+` binds tighter than `WITH`, which binds tighter than `AND`,
+which binds tighter than `OR`. There must be no whitespace between a
+license id and `+`, and whitespace around `WITH`. `AND` and `OR` need
+whitespace and/or parentheses around them. In addition, this parser:
+
+* matches `license-id` and `license-exception-id` case-insensitively, as
+  SPDX recommends, and the part of a reference after `LicenseRef-` or
+  `AdditionRef-` as well;
+* does not yet accept the lowercase operators `and`, `or` and `with`, nor a
+  `DocumentRef-` prefix on an `addition-ref`;
+* requires every `license-ref` and `addition-ref` to be declared as a
+  `license_kind` and passed in `kinds`.
 """
 
 visibility("public")
