@@ -2,7 +2,7 @@ load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@package_metadata//licenses/rules:license_kind.bzl", "license_kind")
 load("@package_metadata//purl:purl.bzl", "purl")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-load("//:license_expression_analysis_test.bzl", "license_expression_failure_test", "license_expression_custom_kinds_test", "license_expression_graph_test", "license_expression_or_later_test")
+load("//:license_expression_analysis_test.bzl", "license_expression_failure_test", "license_expression_custom_kinds_test", "license_expression_graph_test", "license_expression_or_later_test", "license_expression_case_test")
 load("//:license_expression_test.bzl", "license_expression_test")
 load("//:license_json_test.bzl", "license_json_test")
 load("//:purl_test.bzl", "purl_bazel_registry_test")
@@ -103,19 +103,18 @@ license_kind(
 
 license_expression_or_later_test(
     name = "license_expression_or_later_test",
-    expression = "GPL-3.0+ OR LGPL-3.0-or-later",
+    expression = "GPL-3.0+ OR LGPL-3.0-or-later OR CDDL-1.0+",
+)
+
+license_expression_case_test(
+    name = "license_expression_case_test",
+    expression = "mit OR gpl-2.0-ONLY WITH classpath-exception-2.0",
 )
 
 license_expression_failure_test(
-    name = "license_expression_or_later_without_identifier_test",
-    expression = "MIT OR Apache-2.0+",
-    message = "'Apache-2.0+' is not a valid license: SPDX defines no 'or later' identifier for 'Apache-2.0'",
-)
-
-license_expression_failure_test(
-    name = "license_expression_or_later_of_or_later_test",
-    expression = "GPL-3.0-or-later+",
-    message = "'GPL-3.0-or-later+' is not a valid license",
+    name = "license_kind_exception_test",
+    kind = "@package_metadata//licenses/spdx:Classpath-exception-2.0",
+    message = "'Classpath-exception-2.0' is a license exception and can only follow 'WITH'",
 )
 
 # All three operators, nested: AND inside OR, OR inside AND, WITH inside OR.
@@ -133,4 +132,28 @@ license_json_test(
     name = "license_json_all_operators_test",
     expected = "testdata/all_operators.license.json",
     license = ":all_operators_license",
+)
+
+license(
+    name = "single_license",
+    kind = "@package_metadata//licenses/spdx:MIT",
+    tags = ["manual"],
+)
+
+license_json_test(
+    name = "license_json_single_test",
+    expected = "testdata/single.license.json",
+    license = ":single_license",
+)
+
+license(
+    name = "or_later_license",
+    expression = "GPL-3.0+",
+    tags = ["manual"],
+)
+
+license_json_test(
+    name = "license_json_or_later_test",
+    expected = "testdata/or_later.license.json",
+    license = ":or_later_license",
 )

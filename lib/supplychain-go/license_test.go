@@ -75,3 +75,43 @@ func TestSingleLicenseIsLeafNode(t *testing.T) {
 	assert.True(t, root.IsSingle())
 	assert.Empty(t, root.Operands)
 }
+
+func TestLicenseAttributeParserLegacyKind(t *testing.T) {
+	a, err := LicenseAttributeDescriptor.Parser(strings.NewReader(
+		`{"kind":{"identifier":"MIT","name":"MIT License"},"label":"//:l"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.Root().String(); got != "MIT" || !a.Root().IsSingle() {
+		t.Errorf("legacy kind decoded as %q", got)
+	}
+
+	// The expression takes precedence over the deprecated kind.
+	a, err = LicenseAttributeDescriptor.Parser(strings.NewReader(
+		`{"kind":null,"expression":{"operator":"OR","operands":[{"kind":{"identifier":"MIT","name":"M"}},{"kind":{"identifier":"ISC","name":"I"}}]},"label":"//:l"}`))
+	if err != nil || a.Root().String() != "MIT OR ISC" {
+		t.Errorf("expression not preferred: %v %v", a, err)
+	}
+
+	for _, input := range []string{
+		`{"label":"//:l"}`,
+	} {
+		if _, err := LicenseAttributeDescriptor.Parser(strings.NewReader(input)); err == nil {
+			t.Errorf("expected an error for %s", input)
+		}
+	}
+}
+
+func TestLicenseExpressionOrLaterAndCustomString(t *testing.T) {
+	gpl := LicenseExpression{Kind: &LicenseKind{Identifier: "GPL-3.0", Name: "GPL"}, OrLater: true}
+	if got := gpl.String(); got != "GPL-3.0+" {
+		t.Errorf("got %q", got)
+	}
+	custom := LicenseExpression{Kind: &LicenseKind{Identifier: "generic_restricted", Custom: true}}
+	if got := custom.String(); got != "LicenseRef-generic-restricted" {
+		t.Errorf("got %q", got)
+	}
+	if !custom.Kind.IsCustom() || gpl.Kind.IsCustom() {
+		t.Error("unexpected IsCustom")
+	}
+}

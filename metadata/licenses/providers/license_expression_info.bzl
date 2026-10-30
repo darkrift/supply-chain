@@ -22,15 +22,22 @@ for a leaf node.
         "kind": """
 The `LicenseKindInfo` of a leaf node, otherwise `None`.
 """.strip(),
+        "or_later": """
+For a leaf node, a [bool](https://bazel.build/rules/lib/core/bool) indicating
+that the license was followed by `+` in the expression (e.g., `GPL-3.0+`),
+meaning that the license or any later version applies. `kind` is the license
+as written, not a resolved `-or-later` identifier.
+""".strip(),
         "exception": """
 For `WITH` nodes, the `LicenseKindInfo` of the license exception (e.g.,
 `Classpath-exception-2.0`); otherwise `None`.
 """.strip(),
     },
-    init = lambda *, operator = None, operands = [], kind = None, exception = None: {
+    init = lambda *, operator = None, operands = [], kind = None, or_later = False, exception = None: {
         "operator": operator,
         "operands": operands,
         "kind": kind,
+        "or_later": or_later,
         "exception": exception,
     },
 )

@@ -103,7 +103,8 @@ def try_parse_license_expression(expression):
     Nodes are dicts, one of:
 
     * A license: `{"id": str, "or_later": bool, "ref": bool}` (no `operator`), where
-      `ref` is true for `LicenseRef-`/`DocumentRef-` identifiers.
+      `or_later` flags a trailing `+` (which is not part of `id`) and `ref` is
+      true for `LicenseRef-`/`DocumentRef-` identifiers.
     * `{"operator": "WITH", "license": <license node>, "exception": str}`
     * `{"operator": "AND" | "OR", "operands": [<node>, ...]}` (at least 2 operands)
 
@@ -186,13 +187,27 @@ def parse_license_expression(expression):
         fail(result["error"])
     return result
 
-def license_expression_ids(tree, or_later = {}):
+def canonical_id(id, spdx_ids):
+    """Returns the canonical spelling of a standard SPDX identifier.
+
+    SPDX matches license and exception identifiers case-insensitively. Other
+    identifiers (e.g., `LicenseRef-`) are returned unchanged.
+
+    Args:
+      id: A license or exception identifier.
+      spdx_ids: Maps the lower case form of each SPDX identifier to its
+        canonical spelling.
+    """
+    return spdx_ids.get(id.lower(), id)
+
+def license_expression_ids(tree, spdx_ids = {}):
     """Returns the sorted, de-duplicated license and exception ids of a parsed expression.
 
     Args:
       tree: A parsed expression.
-      or_later: Maps a license id to the id that `<id>+` stands for. Leaves
-        using `+` with an id in this map are reported under the mapped id.
+      spdx_ids: Maps the lower case form of each SPDX identifier to its
+        canonical spelling. Standard identifiers are reported in their
+        canonical spelling.
     """
     ids = {}
     stack = [tree]
@@ -204,13 +219,7 @@ def license_expression_ids(tree, or_later = {}):
             stack.extend(node["operands"])
         elif node.get("operator") == "WITH":
             stack.append(node["license"])
-            ids[node["exception"]] = True
+            ids[canonical_id(node["exception"], spdx_ids)] = True
         else:
-            ids[resolve_or_later(node, or_later)] = True
+            ids[canonical_id(node["id"], spdx_ids)] = True
     return sorted(ids)
-
-def resolve_or_later(node, or_later):
-    """Returns the license id of a leaf, resolving `<id>+` through `or_later`."""
-    if node["or_later"] and node["id"] in or_later:
-        return or_later[node["id"]]
-    return node["id"]

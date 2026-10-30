@@ -72,15 +72,63 @@ func TestGenerateDocumentLicenses(t *testing.T) {
 		"single":    "MIT",
 		"custom":    "LicenseRef-acme",
 		"dual":      "MIT OR LicenseRef-acme",
-		"exception": "GPL-2.0-only WITH AdditionRef-link",
+		"exception": "LicenseRef-GPL-2.0-only-WITH-link",
 	}, declared)
 
-	// The custom license is defined once, with its text, and the custom
-	// exception is not defined as a license.
-	require.Len(t, doc.OtherLicenses, 1)
-	assert.Equal(t, "LicenseRef-acme", doc.OtherLicenses[0].LicenseIdentifier)
-	assert.Equal(t, "ACME License", doc.OtherLicenses[0].LicenseName)
-	assert.Equal(t, "ACME license text", doc.OtherLicenses[0].ExtractedText)
+	// The custom license is defined once, with its text, and the license
+	// combined with the custom exception is defined as its own license.
+	require.Len(t, doc.OtherLicenses, 2)
+	assert.Equal(t, "LicenseRef-GPL-2.0-only-WITH-link", doc.OtherLicenses[0].LicenseIdentifier)
+	assert.Equal(t, "GPL WITH Linking", doc.OtherLicenses[0].LicenseName)
+	assert.Equal(t, "LicenseRef-acme", doc.OtherLicenses[1].LicenseIdentifier)
+	assert.Equal(t, "ACME License", doc.OtherLicenses[1].LicenseName)
+	assert.Equal(t, "ACME license text", doc.OtherLicenses[1].ExtractedText)
+}
+
+func TestGenerateDocumentCustomLicenseIdentifiers(t *testing.T) {
+	dir := t.TempDir()
+	textPath := filepath.Join(dir, "LICENSE")
+	writeFile(t, textPath, "restricted text")
+
+	root := writePackage(t, dir, "root", "")
+	// The name-only definition from the dual license is upgraded by the
+	// single license that has a text.
+	dual := writePackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[
+		{"kind":{"identifier":"MIT","name":"MIT License"}},
+		{"kind":{"identifier":"generic_restricted","name":"Restricted","custom":true}}]},"label":"//dual:license"}`)
+	single := writePackage(t, dir, "single", fmt.Sprintf(
+		`{"expression":{"kind":{"identifier":"generic_restricted","name":"Restricted","custom":true}},"label":"//single:license","text":%q}`, textPath))
+	later := writePackage(t, dir, "later", `{"expression":{"kind":{"identifier":"GPL-3.0","name":"GPL"},"or_later":true},"label":"//later:license"}`)
+	customLater := writePackage(t, dir, "customlater", `{"expression":{"kind":{"identifier":"x_y","name":"XY","custom":true},"or_later":true},"label":"//customlater:license"}`)
+
+	doc, err := GenerateDocument(
+		sbom.GraphConfig{},
+		sbom.Classifications{
+			RootComponent: &root,
+			Dependencies:  sbom.DependencyNodes{Direct: []sbom.NodeConfig{dual, single, later, customLater}},
+		},
+		time.Unix(0, 0).UTC(),
+	)
+	require.NoError(t, err)
+
+	declared := map[string]string{}
+	for _, p := range doc.Packages {
+		declared[p.PackageName] = p.PackageLicenseDeclared
+	}
+	assert.Equal(t, map[string]string{
+		"root":        "NOASSERTION",
+		"dual":        "MIT OR LicenseRef-generic-restricted",
+		"single":      "LicenseRef-generic-restricted",
+		"later":       "GPL-3.0+",
+		"customlater": "LicenseRef-x-y-or-later",
+	}, declared)
+
+	texts := map[string]string{}
+	for _, l := range doc.OtherLicenses {
+		texts[l.LicenseIdentifier] = l.ExtractedText
+	}
+	assert.Equal(t, "restricted text", texts["LicenseRef-generic-restricted"])
+	assert.Equal(t, "XY or later", texts["LicenseRef-x-y-or-later"])
 }
 
 func TestReadBuildTimestamp_NoPath(t *testing.T) {

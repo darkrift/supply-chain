@@ -14,7 +14,7 @@ filegroup(
     ] + [
         "//licenses/private:srcs",
         "//licenses/providers:srcs",
-        "//licenses/spdx:or_later.bzl",
+        "//licenses/spdx:ids.bzl",
         "//providers:srcs",
     ],
     visibility = ["//visibility:public"],

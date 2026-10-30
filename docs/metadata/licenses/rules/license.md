@@ -62,6 +62,10 @@ example below is indented for readability):
             "name": "GNU General Public License v3.0 or later"
         }
     },
+    "kind": {
+        "identifier": "GPL-3.0-or-later",
+        "name": "GNU General Public License v3.0 or later"
+    },
     "label": "@@//:license",
     "text": "COPYING"
 }
@@ -69,7 +73,12 @@ example below is indented for readability):
 
 | Field | Description |
 | :---- | :---------- |
-    | `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name"}}` (the `identifier` and `full_name` of a `license_kind`) or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name"}` kind, only for `WITH`). |
+| `expression` | The root node of the AST of the license. Always present: a single `kind` is a leaf node, and an SPDX license `expression` is parsed into a tree. A node is either a leaf `{"kind": {"identifier", "name", "custom"}, "or_later"}` or `{"operator": "AND" or "OR" or "WITH", "operands": [...], "exception"}` (`exception`, a `{"identifier", "name", "custom"}` kind, only for `WITH`). |
+| `*.kind.identifier` | The `identifier` of a `license_kind`, in its canonical spelling for SPDX identifiers. |
+| `*.kind.name` | The `full_name` of a `license_kind`. |
+| `*.kind.custom` | `true` if the identifier is not on the SPDX license list. Absent otherwise. |
+| `*.or_later` | `true` on a leaf that was followed by `+` in the `expression` (e.g., `GPL-3.0+`), meaning that the license or any later version applies. Absent otherwise. |
+| `kind` | Deprecated, for tools that predate `expression`. The `{"identifier", "name"}` kind when the license is a single license without `+`, otherwise `null`. Tools should read `expression` instead. |
 | `label` | The label of this `license` target. |
 | `text` | The path of the license `text` file, relative to the execution root. Absent if no `text` was declared. |
 
@@ -81,7 +90,7 @@ example below is indented for readability):
 | :------------- | :------------- | :------------- |
 | <a id="license-name"></a>name |  A unique name for this target.   |  none |
 | <a id="license-kind"></a>kind |  The kind of license this license is classified as. Exactly one of `kind` and `expression` is required.<br><br>This is typically a `license_kind` target. Targets for all SPDX licenses are predeclared in `@package_metadata//licenses/spdx`.   |  `None` |
-| <a id="license-expression"></a>expression |  An [SPDX license expression](https://spdx.github.io/spdx-spec/v2.3.1/SPDX-license-expressions/) (e.g., `MIT OR (Apache-2.0 AND BSD-3-Clause)`, `GPL-2.0-only WITH Classpath-exception-2.0`). Parsed at analysis time; malformed expressions fail the build. `<id>+` is resolved to its SPDX identifier (`GPL-3.0+` becomes `GPL-3.0-or-later`); it is invalid if SPDX defines no such identifier (e.g., `Apache-2.0+`).   |  `None` |
+| <a id="license-expression"></a>expression |  An [SPDX license expression](https://spdx.github.io/spdx-spec/v2.3.1/SPDX-license-expressions/) (e.g., `MIT OR (Apache-2.0 AND BSD-3-Clause)`, `GPL-2.0-only WITH Classpath-exception-2.0`). Parsed at analysis time; malformed expressions fail the build. Standard SPDX identifiers are matched case-insensitively and reported with their canonical spelling, while the operators `AND`, `OR` and `WITH` are case-sensitive. A trailing `+` (e.g., `GPL-3.0+`) is kept as a flag on the license, not resolved to another identifier.   |  `None` |
 | <a id="license-kinds"></a>kinds |  Additional `license_kind` targets referenced by `expression`, which are required for custom licenses (`LicenseRef-...`) and custom exceptions (`AdditionRef-...`, declared with `exception = True`). SPDX license and exception identifiers are resolved automatically from `@package_metadata//licenses/spdx`.   |  `None` |
 | <a id="license-text"></a>text |  The [File](https://bazel.build/rules/lib/builtins/File) with the text of the license.<br><br>This is typically the `LICENSE` or `COPYING` file of the package. It is propagated to consumers so that it can be shipped alongside built artifacts.   |  `None` |
 | <a id="license-tags"></a>tags |  A list of arbitrary tags to apply to this target.   |  `None` |

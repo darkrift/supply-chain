@@ -15,11 +15,21 @@ const LicenseAttributeKind = "build.bazel.attribute.license"
 var LicenseAttributeDescriptor = PackageAttributeDescriptor[LicenseAttribute]{
 	Kind: LicenseAttributeKind,
 	Parser: func(r io.Reader) (*LicenseAttribute, error) {
-		var a LicenseAttribute
-		if err := json.NewDecoder(r).Decode(&a); err != nil {
+		var raw struct {
+			LicenseAttribute
+			// Kind is the deprecated representation of a single license,
+			// only used when there is no expression.
+			Kind *LicenseKind `json:"kind"`
+		}
+		if err := json.NewDecoder(r).Decode(&raw); err != nil {
 			return nil, err
 		}
-		if a.Expression == nil {
+		a := raw.LicenseAttribute
+		switch {
+		case a.Expression != nil:
+		case raw.Kind != nil:
+			a.Expression = &LicenseExpression{Kind: raw.Kind}
+		default:
 			return nil, fmt.Errorf("license attribute must have an expression")
 		}
 		return &a, nil
@@ -41,11 +51,38 @@ func GetLicenseAttribute(m PackageMetadata) (*LicenseAttribute, error) {
 type LicenseKind struct {
 	Identifier string `json:"identifier"`
 	Name       string `json:"name"`
+	// Custom is set by the rule if the identifier is not on the SPDX list.
+	Custom bool `json:"custom,omitempty"`
 }
 
 // IsCustom returns whether the kind is not part of the SPDX license list.
 func (k LicenseKind) IsCustom() bool {
-	return strings.HasPrefix(k.Identifier, "LicenseRef-") || strings.HasPrefix(k.Identifier, "AdditionRef-")
+	return k.Custom || strings.HasPrefix(k.Identifier, "LicenseRef-") || strings.HasPrefix(k.Identifier, "AdditionRef-")
+}
+
+// RefID returns the identifier to use in an SPDX expression: the identifier
+// itself for SPDX kinds and for kinds already named `LicenseRef-`/`AdditionRef-`,
+// otherwise the identifier rewritten into a valid reference.
+func (k LicenseKind) RefID(exception bool) string {
+	if !k.IsCustom() || strings.HasPrefix(k.Identifier, "LicenseRef-") || strings.HasPrefix(k.Identifier, "AdditionRef-") {
+		return k.Identifier
+	}
+	prefix := "LicenseRef-"
+	if exception {
+		prefix = "AdditionRef-"
+	}
+	return prefix + SanitizeRefSuffix(k.Identifier)
+}
+
+// SanitizeRefSuffix replaces characters not allowed in SPDX idstrings.
+func SanitizeRefSuffix(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-':
+			return r
+		}
+		return '-'
+	}, s)
 }
 
 // LicenseOperator is the operator of a compound node of a `LicenseExpression`.
@@ -66,6 +103,8 @@ type LicenseExpression struct {
 	Operator  LicenseOperator     `json:"operator,omitempty"`
 	Operands  []LicenseExpression `json:"operands,omitempty"`
 	Exception *LicenseKind        `json:"exception,omitempty"`
+	// OrLater is set on a leaf written as `<id>+`.
+	OrLater bool `json:"or_later,omitempty"`
 }
 
 // LicenseAttribute is the license attribute of a package. Its Expression is
@@ -85,9 +124,13 @@ func (a *LicenseAttribute) Root() LicenseExpression {
 func (e LicenseExpression) String() string {
 	switch {
 	case e.Kind != nil:
-		return e.Kind.Identifier
+		id := e.Kind.RefID(false)
+		if e.OrLater {
+			id += "+"
+		}
+		return id
 	case e.Operator == LicenseWith:
-		return e.Operands[0].String() + " WITH " + e.Exception.Identifier
+		return e.Operands[0].String() + " WITH " + e.Exception.RefID(true)
 	default:
 		parts := make([]string, len(e.Operands))
 		for i, o := range e.Operands {

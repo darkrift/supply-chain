@@ -5,11 +5,12 @@ load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test")
 load("@rules_testing//lib:truth.bzl", "matching")
 
-def license_expression_failure_test(*, name, expression, message, kinds = None):
-    """Asserts that analyzing a `license` with `expression` fails with `message`."""
+def license_expression_failure_test(*, name, message, expression = None, kind = None, kinds = None):
+    """Asserts that analyzing a `license` with `expression` or `kind` fails with `message`."""
     license(
         name = name + "_license",
         expression = expression,
+        kind = kind,
         kinds = kinds,
         tags = ["manual"],
     )
@@ -85,7 +86,7 @@ def _custom_kinds_impl(env, target):
     env.expect.that_str(with_node.operands[0].kind.identifier).equals("LicenseRef-acme")
 
 def license_expression_or_later_test(*, name, expression):
-    """Asserts `<id>+` resolves to its standalone SPDX identifier."""
+    """Asserts `<id>+` is kept as a flag on the license it follows."""
     license(
         name = name + "_license",
         expression = expression,
@@ -99,10 +100,39 @@ def license_expression_or_later_test(*, name, expression):
 
 def _or_later_impl(env, target):
     root = target[LicenseExpressionInfo]
-    env.expect.that_int(len(root.operands)).equals(2)
+    env.expect.that_int(len(root.operands)).equals(3)
 
-    # `GPL-3.0+` is the standalone identifier `GPL-3.0-or-later`.
-    env.expect.that_str(root.operands[0].kind.identifier).equals("GPL-3.0-or-later")
+    # `GPL-3.0+` is not resolved to `GPL-3.0-or-later`.
+    env.expect.that_str(root.operands[0].kind.identifier).equals("GPL-3.0")
+    env.expect.that_bool(root.operands[0].or_later).equals(True)
 
-    # An explicit `-or-later` identifier is untouched.
+    # An explicit `-or-later` identifier is untouched and not flagged.
     env.expect.that_str(root.operands[1].kind.identifier).equals("LGPL-3.0-or-later")
+    env.expect.that_bool(root.operands[1].or_later).equals(False)
+
+    # `+` is valid even if SPDX has no `-or-later` identifier for the license.
+    env.expect.that_str(root.operands[2].kind.identifier).equals("CDDL-1.0")
+    env.expect.that_bool(root.operands[2].or_later).equals(True)
+
+def license_expression_case_test(*, name, expression):
+    """Asserts standard identifiers are matched case-insensitively."""
+    license(
+        name = name + "_license",
+        expression = expression,
+        tags = ["manual"],
+    )
+    analysis_test(
+        name = name,
+        impl = _case_impl,
+        target = name + "_license",
+    )
+
+def _case_impl(env, target):
+    root = target[LicenseExpressionInfo]
+    env.expect.that_str(root.operator).equals("OR")
+    env.expect.that_str(root.operands[0].kind.identifier).equals("MIT")
+
+    with_node = root.operands[1]
+    env.expect.that_str(with_node.operator).equals("WITH")
+    env.expect.that_str(with_node.operands[0].kind.identifier).equals("GPL-2.0-only")
+    env.expect.that_str(with_node.exception.identifier).equals("Classpath-exception-2.0")

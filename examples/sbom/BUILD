@@ -5,7 +5,7 @@
 #   |- http_client          MIT                                 standard, single
 #   |- dual_custom          MIT OR LicenseRef-acme-commercial   choice with a custom license
 #   |  `- @legacy_gpl       GPL-2.0+ OR GPL-2.0-with-classpath-exception
-#   |                                                           `+` (reported as GPL-2.0-or-later) and a
+#   |                                                           `+` (kept as an or-later flag) and a
 #   |                                                           deprecated identifier
 #   |- @dual_licensed       Apache-2.0 OR MIT                   choice of standard licenses
 #   |- @crypto_suite        (Apache-2.0 AND BSD-3-Clause) OR MIT

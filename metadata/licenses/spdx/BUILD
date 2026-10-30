@@ -5,7 +5,7 @@
 load("//licenses/rules:license_kind.bzl", "license_kind")
 
 exports_files(
-    ["or_later.bzl"],
+    ["ids.bzl"],
     visibility = ["//visibility:public"],
 )
 

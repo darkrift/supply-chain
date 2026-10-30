@@ -1,4 +1,4 @@
-# A package using a deprecated SPDX identifier (`GPL-2.0-with-classpath-exception`, now `GPL-2.0-only WITH Classpath-exception-2.0`) and the `+` shorthand, which resolves to `GPL-2.0-or-later`.
+# A package using a deprecated SPDX identifier (`GPL-2.0-with-classpath-exception`, now `GPL-2.0-only WITH Classpath-exception-2.0`) and the `+` shorthand, kept as an or-later flag.
 
 load("@package_metadata//licenses/rules:license.bzl", "license")
 load("@package_metadata//purl:purl.bzl", "purl")

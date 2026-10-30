@@ -263,14 +263,14 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 //
 // A single license is represented as a license, using its SPDX identifier if
 // it is on the SPDX license list and its name otherwise. Anything else
-// (choices, combinations, exceptions) is an SPDX license expression.
+// (choices, combinations, exceptions, `+`) is an SPDX license expression.
 func licensesOf(attribute *supplychain.LicenseAttribute) *cdx.Licenses {
 	if attribute == nil {
 		return nil
 	}
 
 	root := attribute.Root()
-	if root.IsSingle() {
+	if root.IsSingle() && !root.OrLater {
 		license := cdx.License{ID: root.Kind.Identifier}
 		if root.Kind.IsCustom() {
 			license = cdx.License{Name: root.Kind.Name}
