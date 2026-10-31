@@ -141,7 +141,6 @@ def main(argv: List[str]) -> int:
         "--ids-output",
         help="The .bzl file writing the table of canonical identifiers to.",
     )
-
     return _run(parser.parse_args(argv[1:]))
 
 

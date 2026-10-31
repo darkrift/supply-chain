@@ -362,7 +362,8 @@ def license(
     if expression:
         # Every SPDX identifier resolves to its predeclared `license_kind`;
         # `kinds` supplies the rest (`LicenseRef-` and `AdditionRef-` identifiers).
-        extra = {k: True for k in (kinds or [])}
+        # Labels given as strings are resolved before being compared.
+        extra = {native.package_relative_label(k): True for k in (kinds or [])}
         predeclared = [
             Label(_SPDX_PACKAGE + ":" + i)
             for i in license_expression_ids(parse_license_expression(expression), SPDX_IDS)

@@ -107,11 +107,27 @@ func TestLicenseExpressionOrLaterAndCustomString(t *testing.T) {
 	if got := gpl.String(); got != "GPL-3.0+" {
 		t.Errorf("got %q", got)
 	}
-	custom := LicenseExpression{Kind: &LicenseKind{Identifier: "generic_restricted", Custom: true}}
+	custom := LicenseExpression{Kind: &LicenseKind{Identifier: "generic-restricted", Custom: true}}
 	if got := custom.String(); got != "LicenseRef-generic-restricted" {
 		t.Errorf("got %q", got)
 	}
 	if !custom.Kind.IsCustom() || gpl.Kind.IsCustom() {
 		t.Error("unexpected IsCustom")
+	}
+}
+
+func TestInvalidCustomIdentifierIsRejected(t *testing.T) {
+	for _, id := range []string{"acme_internal", "LicenseRef-a b", "LicenseRef-"} {
+		_, err := LicenseAttributeDescriptor.Parser(strings.NewReader(`{"kind":{"identifier":"` + id + `","name":"n","custom":true},"label":"x"}`))
+		if err == nil {
+			t.Errorf("expected an error for %q", id)
+		}
+	}
+}
+
+func TestLicenseCustomOrLaterHasOwnReference(t *testing.T) {
+	e := LicenseExpression{Kind: &LicenseKind{Identifier: "LicenseRef-acme", Custom: true}, OrLater: true}
+	if got := e.String(); got != "LicenseRef-acme-or-later" {
+		t.Errorf("got %q", got)
 	}
 }

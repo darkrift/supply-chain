@@ -1,6 +1,8 @@
 package supplychain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +34,11 @@ var LicenseAttributeDescriptor = PackageAttributeDescriptor[LicenseAttribute]{
 		default:
 			return nil, fmt.Errorf("license attribute must have an expression")
 		}
+		for _, kind := range a.Expression.Kinds() {
+			if err := kind.validate(); err != nil {
+				return nil, err
+			}
+		}
 		return &a, nil
 	},
 }
@@ -62,27 +69,43 @@ func (k LicenseKind) IsCustom() bool {
 
 // RefID returns the identifier to use in an SPDX expression: the identifier
 // itself for SPDX kinds and for kinds already named `LicenseRef-`/`AdditionRef-`,
-// otherwise the identifier rewritten into a valid reference.
+// otherwise the identifier with the reference prefix.
 func (k LicenseKind) RefID(exception bool) string {
 	if !k.IsCustom() || strings.HasPrefix(k.Identifier, "LicenseRef-") || strings.HasPrefix(k.Identifier, "AdditionRef-") {
 		return k.Identifier
 	}
-	prefix := "LicenseRef-"
 	if exception {
-		prefix = "AdditionRef-"
+		return "AdditionRef-" + k.Identifier
 	}
-	return prefix + SanitizeRefSuffix(k.Identifier)
+	return "LicenseRef-" + k.Identifier
 }
 
-// SanitizeRefSuffix replaces characters not allowed in SPDX idstrings.
-func SanitizeRefSuffix(s string) string {
-	return strings.Map(func(r rune) rune {
+// ShortHash returns a short, stable hash of the parts, used to make
+// synthesized references unique.
+func ShortHash(parts ...string) string {
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return hex.EncodeToString(sum[:4])
+}
+
+// validate checks that custom identifiers only use the characters of an SPDX
+// idstring (letters, digits, `.` and `-`) after their optional prefix.
+func (k LicenseKind) validate() error {
+	if !k.IsCustom() {
+		return nil
+	}
+	id := strings.TrimPrefix(strings.TrimPrefix(k.Identifier, "LicenseRef-"), "AdditionRef-")
+	valid := id != ""
+	for _, r := range id {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-':
-			return r
+		default:
+			valid = false
 		}
-		return '-'
-	}, s)
+	}
+	if !valid {
+		return fmt.Errorf("invalid custom license identifier %q: only letters, digits, '.' and '-' are allowed", k.Identifier)
+	}
+	return nil
 }
 
 // LicenseOperator is the operator of a compound node of a `LicenseExpression`.
@@ -124,11 +147,7 @@ func (a *LicenseAttribute) Root() LicenseExpression {
 func (e LicenseExpression) String() string {
 	switch {
 	case e.Kind != nil:
-		id := e.Kind.RefID(false)
-		if e.OrLater {
-			id += "+"
-		}
-		return id
+		return e.LeafID()
 	case e.Operator == LicenseWith:
 		return e.Operands[0].String() + " WITH " + e.Exception.RefID(true)
 	default:
@@ -141,6 +160,20 @@ func (e LicenseExpression) String() string {
 		}
 		return strings.Join(parts, " "+string(e.Operator)+" ")
 	}
+}
+
+// LeafID returns the SPDX identifier of a leaf. SPDX only allows `+` after a
+// license of the SPDX list, so the "or later" terms of a custom license get a
+// reference of their own.
+func (e LicenseExpression) LeafID() string {
+	id := e.Kind.RefID(false)
+	switch {
+	case !e.OrLater:
+		return id
+	case e.Kind.IsCustom():
+		return id + "-or-later"
+	}
+	return id + "+"
 }
 
 // IsSingle returns whether the expression is a single license without any

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,11 +96,11 @@ func TestGenerateDocumentCustomLicenseIdentifiers(t *testing.T) {
 	// single license that has a text.
 	dual := writePackage(t, dir, "dual", `{"expression":{"operator":"OR","operands":[
 		{"kind":{"identifier":"MIT","name":"MIT License"}},
-		{"kind":{"identifier":"generic_restricted","name":"Restricted","custom":true}}]},"label":"//dual:license"}`)
+		{"kind":{"identifier":"generic-restricted","name":"Restricted","custom":true}}]},"label":"//dual:license"}`)
 	single := writePackage(t, dir, "single", fmt.Sprintf(
-		`{"expression":{"kind":{"identifier":"generic_restricted","name":"Restricted","custom":true}},"label":"//single:license","text":%q}`, textPath))
+		`{"expression":{"kind":{"identifier":"generic-restricted","name":"Restricted","custom":true}},"label":"//single:license","text":%q}`, textPath))
 	later := writePackage(t, dir, "later", `{"expression":{"kind":{"identifier":"GPL-3.0","name":"GPL"},"or_later":true},"label":"//later:license"}`)
-	customLater := writePackage(t, dir, "customlater", `{"expression":{"kind":{"identifier":"x_y","name":"XY","custom":true},"or_later":true},"label":"//customlater:license"}`)
+	customLater := writePackage(t, dir, "customlater", `{"expression":{"kind":{"identifier":"x-y","name":"XY","custom":true},"or_later":true},"label":"//customlater:license"}`)
 
 	doc, err := GenerateDocument(
 		sbom.GraphConfig{},
@@ -129,6 +130,51 @@ func TestGenerateDocumentCustomLicenseIdentifiers(t *testing.T) {
 	}
 	assert.Equal(t, "restricted text", texts["LicenseRef-generic-restricted"])
 	assert.Equal(t, "XY or later", texts["LicenseRef-x-y-or-later"])
+}
+
+func TestGenerateDocumentDistinctReferences(t *testing.T) {
+	dir := t.TempDir()
+	textPath := filepath.Join(dir, "LICENSE")
+	writeFile(t, textPath, "full terms")
+
+	root := writePackage(t, dir, "root", "")
+	upper := writePackage(t, dir, "upper", `{"expression":{"kind":{"identifier":"LicenseRef-Acme","name":"Upper"}},"label":"//upper:license"}`)
+	lower := writePackage(t, dir, "lower", `{"expression":{"kind":{"identifier":"LicenseRef-acme","name":"Lower"}},"label":"//lower:license"}`)
+	explicit := writePackage(t, dir, "explicit", `{"expression":{"kind":{"identifier":"LicenseRef-MIT-WITH-link","name":"Explicit"}},"label":"//explicit:license"}`)
+	combined := writePackage(t, dir, "combined", fmt.Sprintf(`{"expression":{"operator":"WITH","operands":[
+		{"kind":{"identifier":"MIT","name":"MIT License"}}],
+		"exception":{"identifier":"AdditionRef-link","name":"Linking","custom":true}},"label":"//combined:license","text":%q}`, textPath))
+
+	doc, err := GenerateDocument(
+		sbom.GraphConfig{},
+		sbom.Classifications{
+			RootComponent: &root,
+			Dependencies:  sbom.DependencyNodes{Direct: []sbom.NodeConfig{upper, lower, explicit, combined}},
+		},
+		time.Unix(0, 0).UTC(),
+	)
+	require.NoError(t, err)
+
+	declared := map[string]string{}
+	for _, p := range doc.Packages {
+		declared[p.PackageName] = p.PackageLicenseDeclared
+	}
+	// SPDX ids are case-insensitive, so these must not share a definition.
+	assert.NotEqual(t, strings.ToLower(declared["upper"]), strings.ToLower(declared["lower"]))
+	assert.NotEqual(t, declared["explicit"], declared["combined"])
+
+	names := map[string]string{}
+	texts := map[string]string{}
+	for _, l := range doc.OtherLicenses {
+		names[l.LicenseIdentifier] = l.LicenseName
+		texts[l.LicenseIdentifier] = l.ExtractedText
+	}
+	assert.Len(t, doc.OtherLicenses, 4)
+	assert.Equal(t, "Upper", names[declared["upper"]])
+	assert.Equal(t, "Lower", names[declared["lower"]])
+	assert.Equal(t, "Explicit", names[declared["explicit"]])
+	// A standalone license with a custom exception uses the supplied text.
+	assert.Equal(t, "full terms", texts[declared["combined"]])
 }
 
 func TestReadBuildTimestamp_NoPath(t *testing.T) {
