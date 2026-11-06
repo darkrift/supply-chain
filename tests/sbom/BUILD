@@ -36,6 +36,51 @@ package_metadata(
     purl = "pkg:generic/custom@1.0.0",
 )
 
+license_kind(
+    name = "acme_linking_kind",
+    exception = True,
+    full_name = "ACME linking exception",
+    identifier = "AdditionRef-acme-linking",
+)
+
+license(
+    name = "choice_license",
+    expression = "MIT OR (Apache-2.0 AND LicenseRef-acme)",
+    kinds = [":acme_kind"],
+)
+
+package_metadata(
+    name = "choice_metadata",
+    attributes = [":choice_license"],
+    purl = "pkg:generic/choice@1.0.0",
+)
+
+license(
+    name = "exception_license",
+    expression = "GPL-2.0-only WITH Classpath-exception-2.0 OR LicenseRef-acme WITH AdditionRef-acme-linking",
+    kinds = [
+        ":acme_kind",
+        ":acme_linking_kind",
+    ],
+)
+
+package_metadata(
+    name = "exception_metadata",
+    attributes = [":exception_license"],
+    purl = "pkg:generic/with_exception@1.0.0",
+)
+
+license(
+    name = "or_later_license",
+    expression = "GPL-3.0+",
+)
+
+package_metadata(
+    name = "or_later_metadata",
+    attributes = [":or_later_license"],
+    purl = "pkg:generic/or_later@1.0.0",
+)
+
 package_metadata(
     name = "unlicensed_metadata",
     purl = "pkg:generic/unlicensed@1.0.0",
@@ -44,10 +89,28 @@ package_metadata(
 filegroup(
     name = "app",
     srcs = [
+        ":choice",
         ":custom",
+        ":or_later",
         ":unlicensed",
+        ":with_exception",
     ],
     applicable_licenses = [":app_metadata"],
+)
+
+filegroup(
+    name = "choice",
+    applicable_licenses = [":choice_metadata"],
+)
+
+filegroup(
+    name = "with_exception",
+    applicable_licenses = [":exception_metadata"],
+)
+
+filegroup(
+    name = "or_later",
+    applicable_licenses = [":or_later_metadata"],
 )
 
 filegroup(
