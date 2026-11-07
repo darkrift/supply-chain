@@ -155,3 +155,18 @@ strict_validations_test_suite(
     cyclonedx = ":app_cyclonedx",
     spdx = ":app_spdx",
 )
+
+# The examples: a graph mixing every kind of license declaration.
+[
+    sbom_golden_test(
+        name = "examples_{}_golden_test".format(report),
+        golden = "testdata/examples_{}.json".format(report),
+        report = "@supply_chain_examples//sbom:{}".format(report),
+    )
+    for report in [
+        "app_cyclonedx",
+        "app_spdx",
+        "lib_with_third_party_deps_cyclonedx",
+        "lib_with_third_party_deps_spdx",
+    ]
+]
