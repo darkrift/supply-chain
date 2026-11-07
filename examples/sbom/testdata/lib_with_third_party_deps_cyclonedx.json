@@ -3,7 +3,7 @@
   "bomFormat": "CycloneDX",
   "components": [
     {
-      "bom-ref": "pkg:github/acmecorp/coyote@3.1.4?download_url=https%3A%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
+      "bom-ref": "pkg:github/acmecorp/coyote@3.1.4?download_url=https:%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
       "externalReferences": [
         {
           "type": "distribution",
@@ -18,7 +18,7 @@
         }
       ],
       "name": "acmecorp/coyote",
-      "purl": "pkg:github/acmecorp/coyote@3.1.4?download_url=https%3A%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
+      "purl": "pkg:github/acmecorp/coyote@3.1.4?download_url=https:%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
       "type": "library",
       "version": "3.1.4"
     }
@@ -26,7 +26,7 @@
   "dependencies": [
     {
       "dependsOn": [
-        "pkg:github/acmecorp/coyote@3.1.4?download_url=https%3A%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz"
+        "pkg:github/acmecorp/coyote@3.1.4?download_url=https:%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz"
       ],
       "ref": "pkg:bazel/supply_chain_examples@0.0.1"
     }
@@ -46,6 +46,7 @@
       "type": "library",
       "version": "0.0.1"
     },
+    "timestamp": "1970-01-01T00:00:00Z",
     "tools": {
       "components": [
         {

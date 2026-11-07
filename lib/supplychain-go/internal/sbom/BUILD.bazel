@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "classify.go",
         "genconfig.go",
+        "status.go",
         "validate.go",
     ],
     importpath = "github.com/bazel-contrib/supply-chain/lib/supplychain-go/internal/sbom",
@@ -20,4 +21,10 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
+)
+
+go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    deps = [":sbom"],
 )

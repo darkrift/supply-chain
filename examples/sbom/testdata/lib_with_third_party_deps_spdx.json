@@ -26,7 +26,7 @@
       "creationInfo": "_:CreationInfo-1",
       "name": "coyote",
       "software_downloadLocation": "https://github.com/acmecorp/coyote/archive/refs/tags/3.1.4.tar.gz",
-      "software_packageUrl": "pkg:github/acmecorp/coyote@3.1.4?download_url=https%3A%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
+      "software_packageUrl": "pkg:github/acmecorp/coyote@3.1.4?download_url=https:%2F%2Fgithub.com%2Facmecorp%2Fcoyote%2Farchive%2Frefs%2Ftags%2F3.1.4.tar.gz",
       "software_packageVersion": "3.1.4",
       "spdxId": "SPDXRef:dep-1",
       "type": "software_Package"
@@ -91,25 +91,11 @@
     },
     {
       "creationInfo": "_:CreationInfo-1",
-      "name": "Apache-2.0",
-      "simplelicensing_licenseText": "NOASSERTION",
-      "spdxId": "https://spdx.org/licenses/Apache-2.0",
-      "type": "expandedlicensing_ListedLicense"
-    },
-    {
-      "creationInfo": "_:CreationInfo-1",
-      "name": "CC0-1.0",
-      "simplelicensing_licenseText": "NOASSERTION",
-      "spdxId": "https://spdx.org/licenses/CC0-1.0",
-      "type": "expandedlicensing_ListedLicense"
-    },
-    {
-      "creationInfo": "_:CreationInfo-1",
       "dataLicense": "https://spdx.org/licenses/CC0-1.0",
       "name": "supply_chain_examples",
       "namespaceMap": [
         {
-          "namespace": "https://spdx.org/spdxdocs/pkg:bazel%2Fsupply_chain_examples@0.0.1#",
+          "namespace": "https://example.com/spdx/supply_chain_examples/lib_with_third_party_deps-dev#",
           "prefix": "SPDXRef",
           "type": "NamespaceMap"
         }
@@ -121,8 +107,22 @@
       "rootElement": [
         "SPDXRef:sbom"
       ],
-      "spdxId": "https://spdx.org/spdxdocs/pkg:bazel%2Fsupply_chain_examples@0.0.1",
+      "spdxId": "https://example.com/spdx/supply_chain_examples/lib_with_third_party_deps-dev",
       "type": "SpdxDocument"
+    },
+    {
+      "creationInfo": "_:CreationInfo-1",
+      "name": "Apache-2.0",
+      "simplelicensing_licenseText": "NOASSERTION",
+      "spdxId": "https://spdx.org/licenses/Apache-2.0",
+      "type": "expandedlicensing_ListedLicense"
+    },
+    {
+      "creationInfo": "_:CreationInfo-1",
+      "name": "CC0-1.0",
+      "simplelicensing_licenseText": "NOASSERTION",
+      "spdxId": "https://spdx.org/licenses/CC0-1.0",
+      "type": "expandedlicensing_ListedLicense"
     }
   ]
 }
