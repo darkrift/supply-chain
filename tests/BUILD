@@ -226,18 +226,6 @@ sbom_concluded_licenses_failure_test(
 )
 
 sbom_concluded_licenses_failure_test(
-    name = "sbom_concluded_licenses_no_version_test",
-    message = "'pkg:maven/org.acme/lib' in `concluded_licenses` is not a valid key",
-    purl = "pkg:maven/org.acme/lib",
-)
-
-sbom_concluded_licenses_failure_test(
-    name = "sbom_concluded_licenses_qualifiers_test",
-    message = "'pkg:maven/org.acme/lib@1.0.0?classifier=sources' in `concluded_licenses` is not a valid key",
-    purl = "pkg:maven/org.acme/lib@1.0.0?classifier=sources",
-)
-
-sbom_concluded_licenses_failure_test(
     name = "sbom_concluded_licenses_subpath_test",
     message = "'pkg:maven/org.acme/lib@1.0.0#sub' in `concluded_licenses` is not a valid key",
     purl = "pkg:maven/org.acme/lib@1.0.0#sub",

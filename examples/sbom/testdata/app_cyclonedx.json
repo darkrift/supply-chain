@@ -30,9 +30,16 @@
     },
     {
       "bom-ref": "pkg:bazel/acme_plugin@0.4.1",
+      "evidence": {
+        "licenses": [
+          {
+            "expression": "Apache-2.0 WITH LLVM-exception OR LicenseRef-acme-commercial WITH AdditionRef-acme-linking"
+          }
+        ]
+      },
       "licenses": [
         {
-          "expression": "Apache-2.0 WITH LLVM-exception OR LicenseRef-acme-commercial WITH AdditionRef-acme-linking"
+          "expression": "Apache-2.0 WITH LLVM-exception"
         }
       ],
       "name": "acme_plugin",
@@ -66,9 +73,19 @@
     },
     {
       "bom-ref": "pkg:bazel/dual_licensed@1.0.219",
+      "evidence": {
+        "licenses": [
+          {
+            "expression": "Apache-2.0 OR MIT"
+          }
+        ]
+      },
       "licenses": [
         {
-          "expression": "Apache-2.0 OR MIT"
+          "license": {
+            "acknowledgement": "concluded",
+            "id": "MIT"
+          }
         }
       ],
       "name": "dual_licensed",
@@ -92,9 +109,16 @@
     },
     {
       "bom-ref": "pkg:bazel/legacy_gpl@0.9.0",
+      "evidence": {
+        "licenses": [
+          {
+            "expression": "GPL-2.0+ OR GPL-2.0-with-classpath-exception"
+          }
+        ]
+      },
       "licenses": [
         {
-          "expression": "GPL-2.0+ OR GPL-2.0-with-classpath-exception"
+          "expression": "GPL-2.0-only WITH Classpath-exception-2.0"
         }
       ],
       "name": "legacy_gpl",

@@ -128,14 +128,14 @@ run_sbom --concluded-licenses "${TMP}/manifest.json"
 expect_failure "other version" "pkg:generic/dual@2.0.0"
 require_matched=false
 
-# Invalid keys.
+# The version and the qualifiers of a key are optional.
 write_manifest false "pkg:generic/dual"
 run_sbom --concluded-licenses "${TMP}/manifest.json"
-expect_failure "key without a version" "must have a version"
+expect_success "key without a version"
 
 write_manifest false "pkg:generic/dual@1.0.0?arch=x86"
 run_sbom --concluded-licenses "${TMP}/manifest.json"
-expect_failure "key with qualifiers" "must only have a type, namespace, name and version"
+expect_success "key with qualifiers"
 
 # Choices left unresolved.
 write_manifest true

@@ -7,7 +7,24 @@ load("@supply_chain_tools//sbom:cyclonedx.bzl", "cyclonedx")
 load("@supply_chain_tools//sbom:sbom.bzl", "sbom")
 load("@supply_chain_tools//sbom:spdx.bzl", "spdx")
 
-SPDX_LICENSES = "[.packages[] | {purl: .externalRefs[0].referenceLocator, declared: .licenseDeclared, concluded: .licenseConcluded}] | sort_by(.purl)"
+# The declared and concluded license of each package, as an SPDX license
+# expression, from the hasDeclaredLicense and hasConcludedLicense relationships.
+# A package without a conclusion has a null one.
+SPDX_LICENSES = """
+.["@graph"] as $g
+| def expression($id):
+    ($g | map(select(.spdxId == $id))[0]) as $node
+    | if $node.type == "expandedlicensing_ListedLicense" or $node.type == "expandedlicensing_ListedLicenseException" then $node.name
+      elif $node.type == "expandedlicensing_DisjunctiveLicenseSet" then $node.expandedlicensing_member | map(expression(.)) | join(" OR ")
+      elif $node.type == "expandedlicensing_ConjunctiveLicenseSet" then $node.expandedlicensing_member | map(expression(.)) | join(" AND ")
+      elif $node.type == "expandedlicensing_WithAdditionOperator" then expression($node.expandedlicensing_subjectExtendableLicense) + " WITH " + expression($node.expandedlicensing_subjectAddition)
+      else error("unexpected license node " + $id) end;
+  def related($package; $type):
+    [$g[] | select(.type == "Relationship" and .from == $package and .relationshipType == $type)][0].to[0] | if . == null then null else expression(.) end;
+  [$g[] | select(.type == "software_Package")
+    | {purl: .software_packageUrl, declared: related(.spdxId; "hasDeclaredLicense"), concluded: related(.spdxId; "hasConcludedLicense")}]
+  | sort_by(.purl)
+"""
 
 CYCLONEDX_LICENSES = "[.metadata.component, .components[]] | map({purl, licenses, evidence: .evidence.licenses}) | sort_by(.purl)"
 
