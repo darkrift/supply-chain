@@ -15,6 +15,7 @@ gazelle(name = "gazelle")
 go_library(
     name = "supplychain-go",
     srcs = [
+        "copyright_notice.go",
         "package_attribute.go",
         "package_metadata.go",
     ],

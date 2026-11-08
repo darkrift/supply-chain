@@ -140,6 +140,14 @@ func GenerateBOM(graph sbom.GraphConfig, classifications sbom.Classifications) (
 			}
 		}
 
+		notices, err := supplychain.GetCopyrightNotice(pkgMetadata)
+		if err != nil {
+			return cdx.Component{}, fmt.Errorf("error reading copyright notice of %s: %w", node.Label, err)
+		}
+		if len(notices) > 0 {
+			component.Copyright = strings.Join(notices, "\n")
+		}
+
 		// Add version if available
 		if purl.Version != "" {
 			component.Version = purl.Version

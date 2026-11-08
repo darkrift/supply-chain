@@ -128,11 +128,21 @@ func GenerateDocument(graph sbom.GraphConfig, classifications sbom.Classificatio
 			downloadLocation = qualifier
 		}
 
+		copyrightText := "NOASSERTION"
+		notices, err := supplychain.GetCopyrightNotice(pkgMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("reading copyright notice of %s: %w", node.Label, err)
+		}
+		if len(notices) > 0 {
+			copyrightText = strings.Join(notices, "\n")
+		}
+
 		pkg := &spdx.Package{
 			PackageSPDXIdentifier:   common.ElementID(elementID),
 			PackageDownloadLocation: downloadLocation,
 			PackageLicenseConcluded: "NOASSERTION",
 			PackageLicenseDeclared:  "NOASSERTION",
+			PackageCopyrightText:    copyrightText,
 			PackageExternalReferences: []*spdx.PackageExternalReference{
 				{
 					Category: "PACKAGE-MANAGER",
