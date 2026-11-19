@@ -31,6 +31,16 @@ config_setting(
     values = {"stamp": "1"},
 )
 
+# Disabled by default: fails analysis of an `sbom` when the package metadata of
+# a component does not declare a `component_type` attribute, instead of
+# reporting the format's fallback (`library` in CycloneDX, no purpose in SPDX).
+# Opt in per-invocation with:
+#   bazel build //some:target --//sbom:strict_component_types
+bool_flag(
+    name = "strict_component_types",
+    build_setting_default = False,
+)
+
 toolchain_type(name = "cyclonedx_validator_toolchain_type")
 
 toolchain_type(name = "spdx_validator_toolchain_type")
