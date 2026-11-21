@@ -1,8 +1,63 @@
 """Rules and macros for collecting package_metadata providers."""
 
 load("@bazel_features//:features.bzl", "bazel_features")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load(":providers.bzl", "TargetWithMetadataInfo")
 load(":rule_filters.bzl", "rule_to_excluded_attributes")
+load(":toolchain_involvement.bzl", "normalize_toolchain_type")
+
+_VALID_TOOLCHAIN_INVOLVEMENTS = ["runtime", "embedded", "build"]
+
+def _read_string_dict_attr(ctx, name):
+    if not hasattr(ctx.rule.attr, name):
+        return None
+
+    value = getattr(ctx.rule.attr, name)
+    if type(value) != "dict":
+        fail("{} {} has invalid {} attribute type {}; expected dict of string to string".format(
+            ctx.rule.kind,
+            ctx.label,
+            name,
+            type(value),
+        ))
+    for key, item in value.items():
+        if type(key) != "string" or type(item) != "string":
+            fail("{} {} has invalid {} entry {!r}: expected string keys and values".format(
+                ctx.rule.kind,
+                ctx.label,
+                name,
+                key,
+            ))
+    return value
+
+def _toolchain_involvement_declarations(ctx):
+    declarations = _read_string_dict_attr(ctx, "_supply_chain_toolchain_involvement")
+    if declarations == None:
+        return {}
+
+    toolchain_types = {}
+    if hasattr(ctx.rule, "toolchains"):
+        for toolchain_type in ctx.rule.toolchains.toolchain_types():
+            toolchain_types[normalize_toolchain_type(toolchain_type)] = True
+
+    normalized_declarations = {}
+    for toolchain_type, involvement in declarations.items():
+        if normalize_toolchain_type(toolchain_type) not in toolchain_types:
+            fail("Invalid _supply_chain_toolchain_involvement key {} on {} {}: key must name a toolchain declared by this rule".format(
+                toolchain_type,
+                ctx.rule.kind,
+                ctx.label,
+            ))
+        if involvement not in _VALID_TOOLCHAIN_INVOLVEMENTS:
+            fail("Invalid _supply_chain_toolchain_involvement value {} for {} {} and toolchain {}: expected one of {}".format(
+                involvement,
+                ctx.rule.kind,
+                ctx.label,
+                toolchain_type,
+                _VALID_TOOLCHAIN_INVOLVEMENTS,
+            ))
+        normalized_declarations[normalize_toolchain_type(toolchain_type)] = involvement
+    return normalized_declarations
 
 def _is_exec_config(ctx):
     """Determines whether the current configuration is an exec configuration."""
@@ -84,13 +139,21 @@ def _attr_targets(attr_value):
         return targets
     return []
 
+def _include_build_tools(ctx):
+    return (
+        hasattr(ctx, "attr") and
+        hasattr(ctx.attr, "_include_build_tools") and
+        ctx.attr._include_build_tools[BuildSettingInfo].value
+    )
+
 def _get_transitive_metadata(
         ctx,
         transitive_depsets,
         provider = None,
         null_provider_instance = None,
         filter_func = None,
-        direct_deps = None):
+        direct_deps = None,
+        direct_dep_involvements = None):
     """Gather the collection provider instances of interest from our children.
 
     This is a helper to pull up the collected metadata info from children so
@@ -115,6 +178,7 @@ def _get_transitive_metadata(
     # exactly one edge and one slice of transitive metadata, regardless of
     # how many attributes/positions reference it.
     seen_dep_labels = {}
+    seen_edges = {}
 
     attrs = [attr for attr in dir(ctx.rule.attr)]
     for name in attrs:
@@ -128,18 +192,55 @@ def _get_transitive_metadata(
             # synthetic and not have the aspect. This provides protection
             # against those outlier cases.
             if provider in dep:
-                label_key = str(dep.label)
-                if label_key in seen_dep_labels:
-                    continue
-                seen_dep_labels[label_key] = True
-
                 info = dep[provider]
                 if info != null_provider_instance:
-                    transitive_depsets.append(info.transitive)
+                    label_key = str(dep.label)
+                    if label_key not in seen_dep_labels:
+                        seen_dep_labels[label_key] = True
+                        transitive_depsets.append(info.transitive)
 
-                    # Track direct dependency for graph edges
-                    if direct_deps != None:
-                        direct_deps.append(dep.label)
+                    involvement = "build" if info.is_exec_config else "runtime"
+                    edge_key = label_key + "\0" + involvement
+                    if edge_key not in seen_edges:
+                        seen_edges[edge_key] = True
+                        if direct_deps != None:
+                            direct_deps.append(dep.label)
+                            if direct_dep_involvements != None:
+                                direct_dep_involvements.append(involvement)
+
+    declarations = _toolchain_involvement_declarations(ctx)
+
+    # Toolchain edges are exposed to aspects only on Bazel versions supporting
+    # toolchains_aspects = ["*"].
+    if (bazel_features.rules.supports_toolchains_aspects_star and
+        hasattr(ctx.rule, "toolchains")):
+        for toolchain_type in ctx.rule.toolchains.toolchain_types():
+            resolved_toolchain = ctx.rule.toolchains[toolchain_type]
+
+            # Optional toolchain types may not resolve to anything.
+            if resolved_toolchain == None or provider not in resolved_toolchain:
+                continue
+            info = resolved_toolchain[provider]
+            if info == null_provider_instance:
+                continue
+
+            # `ToolchainAspectsProviders.label` is missing before Bazel 9.
+            label = getattr(resolved_toolchain, "label", None) or info.top_level_target
+            label_key = str(label)
+            if label_key not in seen_dep_labels:
+                seen_dep_labels[label_key] = True
+                transitive_depsets.append(info.transitive)
+
+            involvement = declarations.get(normalize_toolchain_type(toolchain_type))
+            if involvement == None:
+                involvement = "build" if info.is_exec_config else "runtime"
+            edge_key = label_key + "\0" + involvement
+            if edge_key not in seen_edges:
+                seen_edges[edge_key] = True
+                if direct_deps != None:
+                    direct_deps.append(label)
+                    if direct_dep_involvements != None:
+                        direct_dep_involvements.append(involvement)
 
 def gather_metadata_info_common(
         target,
@@ -182,7 +283,7 @@ def gather_metadata_info_common(
     # TODO(aiuto): Consider dropping this hack.
     # A hack until https://github.com/bazelbuild/rules_license/issues/89 is
     # fully resolved.
-    if _is_exec_config(ctx):
+    if _is_exec_config(ctx) and not _include_build_tools(ctx):
         return [null_provider_instance or provider_factory()]
 
     # First we gather my direct metadata providers.
@@ -210,6 +311,7 @@ def gather_metadata_info_common(
     # target depends upon.
     transitive_depsets = []
     direct_deps = []
+    direct_dep_involvements = []
     _get_transitive_metadata(
         ctx = ctx,
         transitive_depsets = transitive_depsets,
@@ -217,6 +319,7 @@ def gather_metadata_info_common(
         null_provider_instance = null_provider_instance,
         filter_func = filter_func,
         direct_deps = direct_deps,
+        direct_dep_involvements = direct_dep_involvements,
     )
 
     # State so far:
@@ -252,6 +355,7 @@ def gather_metadata_info_common(
         return [provider_factory(
             transitive = depset(transitive = transitive_depsets),
             top_level_target = target.label,
+            is_exec_config = _is_exec_config(ctx),
         )]
 
     # Create a TWMI linking this target to the applicable metadata
@@ -259,13 +363,16 @@ def gather_metadata_info_common(
         target = target.label,
         metadata = depset(got_providers),
         direct_deps = tuple(direct_deps),  # Convert to tuple for immutability (required for depset)
+        direct_dep_involvements = tuple(direct_dep_involvements),
     )
     if not transitive_depsets:
         return [provider_factory(
             transitive = depset(direct = [me]),
             top_level_target = target.label,
+            is_exec_config = _is_exec_config(ctx),
         )]
     return [provider_factory(
         transitive = depset(direct = [me], transitive = transitive_depsets),
         top_level_target = target.label,
+        is_exec_config = _is_exec_config(ctx),
     )]

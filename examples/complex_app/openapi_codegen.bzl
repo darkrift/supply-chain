@@ -27,6 +27,9 @@ openapi_generate_sources = rule(
             mandatory = True,
         ),
         "out": attr.output(mandatory = True),
+        "_supply_chain_toolchain_involvement": attr.string_dict(default = {
+            str(Label("@bazel_tools//tools/jdk:toolchain_type")): "build",
+        }),
     },
     toolchains = ["@bazel_tools//tools/jdk:toolchain_type"],
 )
